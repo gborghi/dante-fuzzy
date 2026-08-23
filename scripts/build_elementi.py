@@ -591,24 +591,33 @@ def pack_tema(t):
 
 
 def pack_comando(c, vizi_by_id, pers):
-    violatori = []
-    n = str(c["n"])
     roman = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
              6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X"}[c["n"]]
+    vice_ids = set(c.get("vizi") or [])
+    virt_ids = set(c.get("virtu") or [])
+    violatori, osservanti = [], []
     for p in pers:
-        if roman in p.get("comandamenti", []):
+        # violator = has a vice tied to this commandment (or explicit decalogue mark + vice)
+        if vice_ids & set(p.get("vizi") or []):
             violatori.append({"id": p["id"], "name": p["name"]})
-    luoghi = []
+        elif virt_ids & set(p.get("virtu") or []):
+            osservanti.append({"id": p["id"], "name": p["name"]})
+    luoghi_v, luoghi_o = [], []
     for vid in c.get("vizi", []):
-        luoghi.extend(vizi_by_id.get(vid, {}).get("luoghi", [])[:3])
-    # unique
-    seen = set()
-    uniq = []
-    for loc in luoghi:
-        k = (loc["cantica"], loc["canto"], loc["tercet"])
-        if k not in seen:
-            seen.add(k)
-            uniq.append(loc)
+        luoghi_v.extend(vizi_by_id.get(vid, {}).get("luoghi", [])[:3])
+    for p in pers:
+        if virt_ids & set(p.get("virtu") or []):
+            luoghi_o.extend((p.get("luoghi") or [])[:2])
+
+    def uniq(seq):
+        seen, out = set(), []
+        for loc in seq:
+            k = (loc["cantica"], loc["canto"], loc["tercet"])
+            if k not in seen:
+                seen.add(k)
+                out.append(loc)
+        return out
+
     return {
         "n": c["n"],
         "roman": roman,
@@ -616,7 +625,10 @@ def pack_comando(c, vizi_by_id, pers):
         "vizi": c.get("vizi", []),
         "virtu": c.get("virtu", []),
         "violatori": violatori,
-        "luoghi": uniq[:12],
+        "osservanti": osservanti,
+        "luoghi_violazione": uniq(luoghi_v)[:12],
+        "luoghi_osservanza": uniq(luoghi_o)[:12],
+        "luoghi": uniq(luoghi_v)[:12],
     }
 
 

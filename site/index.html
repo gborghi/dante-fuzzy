@@ -358,7 +358,13 @@
       border-radius: 10px; border: 1px solid var(--border); color: var(--muted);
       margin: .1rem .15rem 0 0; cursor: pointer;
     }
-    .el-chip:hover { color: var(--gold); border-color: var(--gold); }
+    .el-chip.bad { color: #e8b4b4; border-color: #8a3a3a; background: rgba(138,58,58,.18); }
+    .el-chip.good { color: #b8d4b0; border-color: #3d6b3a; background: rgba(61,107,58,.18); }
+    .el-row { margin: .45rem 0 .2rem; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
+    .el-row.bad { color: #c0392b; }
+    .el-row.good { color: #5a8f4a; }
+    .el-locus.bad { border-left-color: #8a3a3a; }
+    .el-locus.good { border-left-color: #3d6b3a; }
     .el-locus {
       display: block; text-align: left; width: 100%;
       background: var(--parch); border: 1px solid var(--border); border-left: 3px solid var(--gold-dim);
@@ -2433,18 +2439,20 @@ function showTopic(id) {
   document.getElementById('topic-detail').style.display = 'block';
 }
 
-function elLocusBtn(loc) {
-  return `<button type="button" class="el-locus" data-cantica="${esc(loc.cantica)}" data-canto="${loc.canto}" data-tercet="${loc.tercet}">
+function elChips(items, kind, tone) {
+  const cls = 'el-chip' + (tone ? ' ' + tone : '');
+  return (items || []).map(it => {
+    if (typeof it === 'string') return `<span class="${cls}" data-el="${kind}" data-id="${esc(it)}">${esc(it)}</span>`;
+    return `<span class="${cls}" data-el="${kind}" data-id="${esc(it.id)}">${esc(it.name || it.id)}</span>`;
+  }).join('');
+}
+
+function elLocusBtn(loc, tone) {
+  const cls = 'el-locus' + (tone ? ' ' + tone : '');
+  return `<button type="button" class="${cls}" data-cantica="${esc(loc.cantica)}" data-canto="${loc.canto}" data-tercet="${loc.tercet}">
     <div class="el-ref">${esc(loc.cantica)} ${loc.canto} · terzina ${loc.tercet}</div>
     <div class="el-sn">${esc(loc.snippet || '')}</div>
   </button>`;
-}
-
-function elChips(items, kind) {
-  return (items || []).map(it => {
-    if (typeof it === 'string') return `<span class="el-chip" data-el="${kind}" data-id="${esc(it)}">${esc(it)}</span>`;
-    return `<span class="el-chip" data-el="${kind}" data-id="${esc(it.id)}">${esc(it.name || it.id)}</span>`;
-  }).join('');
 }
 
 function renderElementi(data) {
@@ -2453,7 +2461,7 @@ function renderElementi(data) {
   pers.innerHTML = (data.personaggi || []).map(p => `
     <div class="d-card el-card" id="el-p-${p.id}">
       <div class="d-card-title">${esc(p.name)}</div>
-      <div>${elChips(p.vizi,'vizi')}${elChips(p.virtu,'virtu')}${elChips((p.comandamenti||[]).map(n=>({id:n,name:'Dec. '+n})),'dec')}</div>
+      <div>${elChips(p.vizi,'vizi','bad')}${elChips(p.virtu,'virtu','good')}${elChips((p.comandamenti||[]).map(n=>({id:n,name:'Dec. '+n})),'dec','bad')}</div>
       ${(p.luoghi||[]).map(elLocusBtn).join('')}
     </div>`).join('');
 
@@ -2467,7 +2475,7 @@ function renderElementi(data) {
     <div class="d-card el-card" id="el-v-${v.id}">
       <div class="d-card-title">${esc(v.name)}</div>
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
-      <div>${elChips(v.comandamenti,'dec')}${elChips(v.personaggi,'pers')}</div>
+      <div>${elChips(v.comandamenti,'dec','bad')}${elChips(v.personaggi,'pers','bad')}</div>
       ${(v.luoghi||[]).map(elLocusBtn).join('')}
     </div>`).join('');
 
@@ -2475,16 +2483,19 @@ function renderElementi(data) {
     <div class="d-card el-card" id="el-u-${v.id}">
       <div class="d-card-title">${esc(v.name)}</div>
       <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
-      <div>${elChips(v.personaggi,'pers')}</div>
+      <div>${elChips(v.personaggi,'pers','good')}</div>
       ${(v.luoghi||[]).map(elLocusBtn).join('')}
     </div>`).join('');
 
   document.getElementById('el-dec').innerHTML = (data.comandamenti || []).map(c => `
     <div class="d-card el-card" id="el-c-${c.roman}">
       <div class="d-card-title">${c.roman}. ${esc(c.name)}</div>
-      <div style="font-size:.78rem;color:var(--muted);margin:.2rem 0">Vizi: ${elChips(c.vizi,'vizi')} · Virtù: ${elChips(c.virtu,'virtu')}</div>
-      <div style="font-size:.78rem;margin-bottom:.4rem">Violatori: ${c.violatori?.length ? elChips(c.violatori,'pers') : '—'}</div>
-      ${(c.luoghi||[]).map(elLocusBtn).join('')}
+      <div class="el-row bad">Violato da</div>
+      <div>${c.violatori?.length ? elChips(c.violatori,'pers','bad') : '—'}</div>
+      ${(c.luoghi_violazione||c.luoghi||[]).map(l => elLocusBtn(l,'bad')).join('')}
+      <div class="el-row good">Osservato / incarnato da</div>
+      <div>${c.osservanti?.length ? elChips(c.osservanti,'pers','good') : '—'}</div>
+      ${(c.luoghi_osservanza||[]).map(l => elLocusBtn(l,'good')).join('')}
     </div>`).join('');
 
   document.getElementById('el-post').innerHTML = (data.posteriori || []).map(p => `
