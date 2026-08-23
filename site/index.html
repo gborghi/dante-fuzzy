@@ -262,10 +262,18 @@
       font-family: 'Cinzel', serif; color: var(--gold);
       letter-spacing: .06em; font-size: 1rem;
     }
-    .terzina-focus {
-      outline: 2px solid var(--gold);
-      box-shadow: 0 0 20px rgba(212,168,67,.35);
-      animation: focus-pulse 1.6s ease-out;
+    .terzina-card.terzina-focus {
+      outline: none;
+      border: 2px solid #e8c15a !important;
+      border-left-width: 6px !important;
+      background: rgba(232,193,90,.20) !important;
+      box-shadow: 0 0 0 2px rgba(232,193,90,.35), 0 0 18px rgba(232,193,90,.25);
+    }
+    #canto-modal-body { overflow: auto; max-height: 70vh; }
+    #canto-modal-body .terzina-card {
+      display: block;
+      max-width: none;
+      margin: .45rem 0;
     }
     @keyframes focus-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(212,168,67,.85); }
@@ -1414,8 +1422,9 @@ function createTercetCards(cantica, canto, $el) {
   terz.forEach(([tz, txt, sent, sc]) => {
     const hl = highlightSearchedText(txt, conditions, similarityThreshold);
     const cls = sent?.toLowerCase()==='positive' ? 'positive' : sent?.toLowerCase()==='negative' ? 'negative' : '';
+    const hitsQuery = tercetMatchesQuery(txt);
     const $c = $(`
-      <div class="terzina-card ${cls}"
+      <div class="terzina-card ${cls}${hitsQuery ? ' terzina-focus' : ''}"
            data-cantica="${cantica}" data-canto="${canto}"
            data-number="${tz}" data-sentiment="${sent||''}" data-score="${sc||0}">
         <div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}
@@ -1423,6 +1432,8 @@ function createTercetCards(cantica, canto, $el) {
     $wrap.append($c);
   });
   $el.empty().append($wrap);
+  const firstHit = $wrap.find('.terzina-focus')[0];
+  if (firstHit) firstHit.scrollIntoView({behavior:'smooth', block:'center'});
 
   // Update info panel
   const col = C_COLOR[cantica];
@@ -1485,14 +1496,18 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   // Show
   const modalEl = document.getElementById('cantoModal');
   if (!_cantoModalInstance) _cantoModalInstance = new bootstrap.Modal(modalEl);
-  _cantoModalInstance.show();
-
-  setTimeout(() => {
+  const scrollHits = () => {
+    const scroller = modalEl.querySelector('.modal-body');
     const el = highlightTz !== null
       ? body.querySelector(`.terzina-focus[data-number="${highlightTz}"]`) || body.querySelector('.terzina-focus')
       : body.querySelector('.terzina-focus');
-    if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
-  }, 320);
+    if (!el || !scroller) return;
+    const top = el.offsetTop - Math.max(24, scroller.clientHeight / 4);
+    scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  };
+  modalEl.addEventListener('shown.bs.modal', scrollHits, { once: true });
+  _cantoModalInstance.show();
+  setTimeout(scrollHits, 450);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2044,9 +2059,10 @@ function showAllMatchingTercets(){
   out.forEach(({cantica:c,canto,terzina,text,sentiment:sent,score:sc})=>{
     const hl=highlightSearchedText(text,conditions,similarityThreshold);
     const cls=sent?.toLowerCase()==='positive'?'positive':sent?.toLowerCase()==='negative'?'negative':'';
+    const hit = tercetMatchesQuery(text);
     const col=C_COLOR[c];
     $dr.append($(`
-      <div class="terzina-card ${cls}" style="margin:.2rem"
+      <div class="terzina-card ${cls}${hit ? ' terzina-focus' : ''}" style="margin:.2rem"
            data-cantica="${c}" data-canto="${canto}" data-number="${terzina}"
            data-sentiment="${sent||''}" data-score="${sc||0}">
         <div class="t-ref"><span style="background:${col};color:#fff;border-radius:2px;padding:.05rem .3rem;font-size:.65rem">${c.slice(0,3)}</span>
