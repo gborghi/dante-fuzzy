@@ -1469,13 +1469,14 @@ function openCantoModal(cantica, canto, highlightTz=null) {
     const hl = highlightSearchedText(txt, conditions, similarityThreshold);
     const cls = sent?.toLowerCase()==='positive' ? 'positive'
               : sent?.toLowerCase()==='negative' ? 'negative' : '';
-    const isFocus = highlightTz !== null && +tz === +highlightTz;
+    const hitsQuery = tercetMatchesQuery(txt);
+    const isFocus = (highlightTz !== null && +tz === +highlightTz) || hitsQuery;
     const card = document.createElement('div');
     card.className = 'terzina-card ' + cls + (isFocus ? ' terzina-focus' : '');
     card.setAttribute('data-cantica', cantica);
     card.setAttribute('data-canto', canto);
     card.setAttribute('data-number', tz);
-    card.style.cursor = 'default';  // inside modal, disable further nav
+    card.style.cursor = 'default';
     card.innerHTML = `<div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}`;
     wrap.appendChild(card);
   });
@@ -1486,13 +1487,12 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   if (!_cantoModalInstance) _cantoModalInstance = new bootstrap.Modal(modalEl);
   _cantoModalInstance.show();
 
-  // Scroll to highlighted tercet after paint
-  if (highlightTz !== null) {
-    setTimeout(() => {
-      const el = body.querySelector('.terzina-focus');
-      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
-    }, 320);
-  }
+  setTimeout(() => {
+    const el = highlightTz !== null
+      ? body.querySelector(`.terzina-focus[data-number="${highlightTz}"]`) || body.querySelector('.terzina-focus')
+      : body.querySelector('.terzina-focus');
+    if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 320);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1969,27 +1969,57 @@ function evalQuery(text,cond,thr=0){
   return !!stack.pop();
 }
 
-function highlightSearchedText(text,cond,thr=0){
-  if(!cond) return text;
-  const words=text.split(/\s+/).map(w=>({word:w}));
-  const fuse=new Fuse(words,{threshold:thr,keys:['word']});
-  cond.forEach(c=>{
-    if(!c.term)return;
-    const t=c.term.toLowerCase();
-    if(thr>0){
-      fuse.search(t).forEach(r=>{
-        text=text.replace(new RegExp(`(${r.item.word})`,'gi'),'<mark>$1</mark>');
-      });
-    } else {
-      let rx;
-      if(t.startsWith('*')&&t.endsWith('*'))rx=new RegExp(`(${t.slice(1,-1)})`,'gi');
-      else if(t.startsWith('*'))rx=new RegExp(`(${t.slice(1)})(?=\\s|$|[.,!?;:])`,'gi');
-      else if(t.endsWith('*'))rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t.slice(0,-1)})`,'gi');
-      else rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t})(?=\\s|$|[.,!?;:])`,'gi');
-      text=text.replace(rx,'<mark>$1</mark>');
-    }
+function queryTermsFromBar() {
+  const q = (document.getElementById('searchBar')?.value || '').trim().toLowerCase();
+  if (!q && conditions?.length) return conditions.filter(c => c.term).map(c => c.term);
+  return (q.match(/[^\s()]+/g) || []).filter(t => !['and','or','not'].includes(t));
+}
+
+function tercetMatchesQuery(txt) {
+  const q = (document.getElementById('searchBar')?.value || '').trim().toLowerCase();
+  const cond = (conditions && conditions.length) ? conditions : (q ? parseQuery(q) : null);
+  if (cond && cond.length) {
+    if (evalQuery(String(txt||'').toLowerCase(), cond, similarityThreshold)) return true;
+  }
+  if (!nlpEngine) return false;
+  const terms = queryTermsFromBar();
+  if (!terms.length) return false;
+  const toks = nlpEngine._tok(txt);
+  return terms.some(t => {
+    const wc = t.includes('*');
+    const rx = wc ? new RegExp('^'+t.replace(/\*/g,'.*')+'$') : null;
+    const st = (!wc && typeof stemIt === 'function') ? stemIt(t) : t;
+    return toks.some(x => wc ? rx.test(x) : (x === t || x === st));
   });
-  return text;
+}
+
+function highlightSearchedText(text,cond,thr=0){
+  const terms = [];
+  if (cond && cond.length) cond.forEach(c => { if (c.term) terms.push(c.term.toLowerCase()); });
+  queryTermsFromBar().forEach(t => { if (!terms.includes(t)) terms.push(t); });
+  if (!terms.length) return text;
+  if (thr>0) {
+    const words=String(text).split(/\s+/).map(w=>({word:w}));
+    const fuse=new Fuse(words,{threshold:thr,keys:['word']});
+    terms.forEach(t=>{
+      fuse.search(t).forEach(r=>{
+        text=String(text).replace(new RegExp(`(${r.item.word})`,'gi'),'<mark>$1</mark>');
+      });
+    });
+    return text;
+  }
+  const raw = String(text || '').replace(/<\/?span[^>]*>/gi, '');
+  const parts = raw.split(/(\b[\wÀ-ÿ']+\b)/);
+  return parts.map(part => {
+    const bare = part.toLowerCase().replace(/^'+|'+$/g,'');
+    if (!bare) return esc(part);
+    const hit = terms.some(t => {
+      if (t.includes('*')) return new RegExp('^'+t.replace(/\*/g,'.*')+'$').test(bare);
+      const st = (typeof stemIt === 'function') ? stemIt(t) : t;
+      return bare === t || ((typeof stemIt === 'function') && stemIt(bare) === st);
+    });
+    return hit ? `<mark>${esc(part)}</mark>` : esc(part);
+  }).join('');
 }
 
 function showAllMatchingTercets(){
