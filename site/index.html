@@ -283,6 +283,25 @@
       max-width: none;
       margin: .45rem 0;
     }
+    .btn-comm {
+      display: inline-block; border: 1px solid var(--gold-dim);
+      background: rgba(232,193,90,.12); color: var(--gold);
+      font-size: .68rem; line-height: 1; padding: .18rem .38rem;
+      border-radius: 3px; cursor: pointer; vertical-align: middle;
+      font-family: 'Source Sans 3', sans-serif; letter-spacing: .04em;
+    }
+    .btn-comm:hover { background: var(--gold); color: #1a1400; }
+    .btn-comm.is-empty { display: none; }
+    .t-ref { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+    #commentiModal { z-index: 1080; }
+    #commentiModal + .modal-backdrop { z-index: 1075; }
+    .comm-author { margin: .8rem 0 1.1rem; }
+    .comm-author h3 {
+      font-family: 'Cinzel', serif; font-size: .95rem; color: var(--gold);
+      margin: 0 0 .35rem;
+    }
+    .comm-cite { font-size: .75rem; color: var(--muted); margin: .15rem 0 .35rem; }
+    .comm-body { font-size: .92rem; line-height: 1.45; }
     @keyframes focus-pulse {
       0%   { box-shadow: 0 0 0 0 rgba(212,168,67,.85); }
       55%  { box-shadow: 0 0 0 12px rgba(212,168,67,0); }
@@ -1420,7 +1439,7 @@ function createTercetCards(cantica, canto, $el) {
       <div class="terzina-card ${cls}${hitsQuery ? ' terzina-focus' : ''}"
            data-cantica="${cantica}" data-canto="${canto}"
            data-number="${tz}" data-sentiment="${sent||''}" data-score="${sc||0}">
-        <div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}
+        <div class="t-ref">${cantica} · ${canto} · ${tz} ${commBtnHtml(cantica, canto, tz)}</div>${hl}
       </div>`);
     $wrap.append($c);
   });
@@ -1434,12 +1453,86 @@ function createTercetCards(cantica, canto, $el) {
     <div style="margin-bottom:.4rem">
       <span style="background:${col};color:#fff;border-radius:3px;padding:.1rem .5rem;font-size:.72rem">${cantica}</span>
       <strong style="margin-left:.4rem">Canto ${canto}</strong>
+      ${commBtnHtml(cantica, canto, null)}
     </div>
     <div style="color:var(--muted);font-size:.78rem">
       ${terz.length} terzine &nbsp;·&nbsp;
       ${terz.filter(t=>t[2]?.toLowerCase()==='positive').length} pos &nbsp;·&nbsp;
       ${terz.filter(t=>t[2]?.toLowerCase()==='negative').length} neg
     </div>`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COMMENTI (PD: Tozer, Scartazzini, Longfellow, Tommaseo)
+// ═══════════════════════════════════════════════════════════
+let commentiByCantica = {};
+let _commentiModal = null;
+
+function commBtnHtml(cantica, canto, tz) {
+  const t = tz == null ? '' : ` data-tercet="${tz}"`;
+  return `<button type="button" class="btn-comm" data-cantica="${cantica}" data-canto="${canto}"${t} title="Commenti d’autore">note</button>`;
+}
+
+function loadCommenti(cantica) {
+  if (commentiByCantica[cantica]) return Promise.resolve(commentiByCantica[cantica]);
+  return fetch('data/commenti/' + encodeURIComponent(cantica) + '.json')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => { commentiByCantica[cantica] = d; return d; })
+    .catch(() => {
+      const empty = { authors: {}, canti: {} };
+      commentiByCantica[cantica] = empty;
+      return empty;
+    });
+}
+
+function notesFor(cantica, canto, tz) {
+  const pack = commentiByCantica[cantica];
+  const c = pack && pack.canti && pack.canti[String(canto)];
+  if (!c) return [];
+  if (tz == null || tz === '') return c.canto || [];
+  return (c.tz && c.tz[String(tz)]) || [];
+}
+
+function markEmptyCommButtons(root) {
+  (root || document).querySelectorAll('.btn-comm').forEach(btn => {
+    const notes = notesFor(btn.dataset.cantica, btn.dataset.canto, btn.dataset.tercet);
+    btn.classList.toggle('is-empty', !notes.length);
+    if (notes.length) btn.title = notes.length + ' commenti';
+  });
+}
+
+function openCommentiModal(cantica, canto, tz) {
+  loadCommenti(cantica).then(() => {
+    const notes = notesFor(cantica, canto, tz);
+    const authors = (commentiByCantica[cantica] || {}).authors || {};
+    const title = tz
+      ? `${cantica} ${canto} · terzina ${tz}`
+      : `${cantica} ${canto} · commento al canto`;
+    const elTitle = document.getElementById('commenti-modal-title');
+    const elBody = document.getElementById('commenti-modal-body');
+    if (elTitle) elTitle.textContent = title;
+    if (!notes.length) {
+      elBody.innerHTML = '<p style="color:var(--muted)">Nessun commento di pubblico dominio allineato a questo passo.</p>';
+    } else {
+      const byA = {};
+      notes.forEach(n => { (byA[n.a] = byA[n.a] || []).push(n); });
+      elBody.innerHTML = Object.entries(byA).map(([id, list]) => {
+        const meta = authors[id] || { name: id, work: '', year: '' };
+        const head = `${meta.name}${meta.year ? ' (' + meta.year + ')' : ''}`;
+        const work = meta.work ? `<div class="comm-cite">${esc(meta.work)}</div>` : '';
+        const items = list.map(n => `
+          <div class="d-card" style="margin:.4rem 0">
+            <div class="comm-body">${esc(n.t)}</div>
+            <div class="comm-cite">— ${esc(n.cite || head)}</div>
+          </div>`).join('');
+        return `<section class="comm-author"><h3>${esc(head)}</h3>${work}${items}</section>`;
+      }).join('');
+    }
+    const modalEl = document.getElementById('commentiModal');
+    if (!_commentiModal) _commentiModal = new bootstrap.Modal(modalEl);
+    _commentiModal.show();
+    markEmptyCommButtons(document);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1507,7 +1600,8 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   badge.textContent = cantica;
   badge.className = 'cantica-pill ' +
     (cantica==='Inferno'?'pill-inf':cantica==='Purgatorio'?'pill-pur':'pill-par');
-  document.getElementById('canto-modal-title').textContent = `Canto ${canto}`;
+  document.getElementById('canto-modal-title').innerHTML =
+    `Canto ${canto} ${commBtnHtml(cantica, canto, null)}`;
   const sin = document.getElementById('canto-modal-sintesi');
   if (sin) sin.innerHTML = cantoSintesi(cantica, canto);
   const nPos = terz.filter(t=>t[2]?.toLowerCase()==='positive').length;
@@ -1533,7 +1627,7 @@ function openCantoModal(cantica, canto, highlightTz=null) {
     card.setAttribute('data-canto', canto);
     card.setAttribute('data-number', tz);
     card.style.cursor = 'default';
-    card.innerHTML = `<div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}`;
+    card.innerHTML = `<div class="t-ref">${cantica} · ${canto} · ${tz} ${commBtnHtml(cantica, canto, tz)}</div>${hl}`;
     wrap.appendChild(card);
   });
   body.appendChild(wrap);
@@ -1553,6 +1647,7 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   modalEl.addEventListener('shown.bs.modal', scrollHits, { once: true });
   _cantoModalInstance.show();
   setTimeout(scrollHits, 450);
+  loadCommenti(cantica).then(() => markEmptyCommButtons(modalEl));
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2957,6 +3052,11 @@ $(()=>{
   // ── Double-click anywhere with a tercet citation → open canto modal ──
   // Works on: .terzina-card (UMAP dropdown), #kwic-table rows (Concordanze),
   // .sent-card (Sentiment). Any element with data-cantica + data-canto works.
+  $('body').on('click', '.btn-comm', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    openCommentiModal(this.dataset.cantica, this.dataset.canto, this.dataset.tercet || null);
+  });
   $('body').on('click', '#net-terzine .sent-card', function(){
     const cantica = $(this).attr('data-cantica');
     const canto   = +$(this).attr('data-canto');
@@ -3120,6 +3220,22 @@ $(()=>{
       <div class="modal-body" id="canto-modal-body"></div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-parch btn-sm" data-bs-dismiss="modal">← Indietro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="commentiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <span id="commenti-modal-title" style="font-family:'Cinzel',serif;color:var(--gold)">Commenti</span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body" id="commenti-modal-body"></div>
+      <div class="modal-footer">
+        <span style="font-size:.75rem;color:var(--muted);margin-right:auto">Fonti di pubblico dominio (Tozer, Scartazzini, Longfellow, Tommaseo)</span>
+        <button type="button" class="btn btn-outline-parch btn-sm" data-bs-dismiss="modal">Chiudi</button>
       </div>
     </div>
   </div>
