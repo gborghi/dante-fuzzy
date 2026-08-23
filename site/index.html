@@ -260,8 +260,14 @@
     #cantoModal .btn-close:hover { opacity: 1; }
     #canto-modal-title {
       font-family: 'Cinzel', serif; color: var(--gold);
-      letter-spacing: .06em; font-size: 1rem;
+      letter-spacing: .06em; font-size: 1rem; white-space: nowrap;
     }
+    .canto-sintesi {
+      font-size: .82rem; color: var(--text); line-height: 1.35;
+      border-left: 2px solid var(--gold-dim); padding-left: .55rem; margin-left: .15rem;
+      max-width: min(52vw, 28rem);
+    }
+    .modal-header .d-flex { flex-wrap: wrap; align-items: flex-start !important; }
     .terzina-card.terzina-focus {
       outline: none;
       border: 2px solid #e8c15a !important;
@@ -1438,6 +1444,53 @@ function createTercetCards(cantica, canto, $el) {
 //  CANTO MODAL (opens from any tercet citation)
 // ═══════════════════════════════════════════════════════════
 let _cantoModalInstance = null;
+function cantoSintesi(cantica, canto) {
+  const n = +canto;
+  const blurbs = {
+    'Inferno:1': 'Selva, tre fiere, incontro a Virgilio',
+    'Inferno:2': 'Dubbio di Dante; Beatrice manda Virgilio',
+    'Inferno:3': 'Porta dell’Inferno; ignavi; Caronte',
+    'Inferno:5': 'Minosse; lussuriosi; Francesca e Paolo',
+    'Inferno:6': 'Cerbero e Ciacco; profezia su Firenze',
+    'Inferno:10': 'Eretici; Farinata e Cavalcante',
+    'Inferno:13': 'Suicidi; Pier della Vigna',
+    'Inferno:15': 'Brunetto Latini e la fama',
+    'Inferno:26': 'Ulisse: il folle volo',
+    'Inferno:27': 'Guido da Montefeltro',
+    'Inferno:33': 'Ugolino nella torre',
+    'Inferno:34': 'Lucifero; uscita verso le stelle',
+    'Purgatorio:1': 'Spiaggia; Catone; il giunco',
+    'Purgatorio:16': 'Marco Lombardo e il libero arbitrio',
+    'Purgatorio:24': 'Bonagiunta e il dolce stil novo',
+    'Purgatorio:26': 'Guinizzelli e Arnaut',
+    'Purgatorio:30': 'Beatrice compare; Virgilio scompare',
+    'Paradiso:3': 'Piccarda e i voti spezzati',
+    'Paradiso:6': 'Giustiniano e l’Aquila',
+    'Paradiso:11': 'Tommaso racconta Francesco',
+    'Paradiso:17': 'Cacciaguida: profezia dell’esilio',
+    'Paradiso:33': 'Bernardo; preghiera a Maria; visione'
+  };
+  const hit = blurbs[`${cantica}:${n}`];
+  if (hit) return hit;
+  const regs = (typeof COSMOLOGY !== 'undefined' && COSMOLOGY[cantica]) || [];
+  let luogo = '';
+  for (const r of regs) {
+    if (!(r.cantos || []).includes(n)) continue;
+    luogo = r.sub ? `${r.name} · ${r.sub}` : r.name;
+    if (r.subregions) {
+      const sr = r.subregions.find(s => (s.cantos || []).includes(n));
+      if (sr) luogo = `${sr.name} · ${sr.sub}`;
+    }
+  }
+  const pers = ((window.elementiCatalog || {}).personaggi || [])
+    .filter(p => (p.luoghi || []).some(l => l.cantica === cantica && +l.canto === n))
+    .map(p => p.name)
+    .filter((name, i, a) => a.indexOf(name) === i)
+    .slice(0, 3);
+  const bits = [luogo, pers.length ? pers.join(', ') : ''].filter(Boolean);
+  return bits.join(' · ') || `${cantica}, canto ${n}`;
+}
+
 function openCantoModal(cantica, canto, highlightTz=null) {
   const terz = globalTercet?.[cantica]?.[canto]
             || globalTercet?.[cantica]?.[String(canto)];
@@ -1450,6 +1503,8 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   badge.className = 'cantica-pill ' +
     (cantica==='Inferno'?'pill-inf':cantica==='Purgatorio'?'pill-pur':'pill-par');
   document.getElementById('canto-modal-title').textContent = `Canto ${canto}`;
+  const sin = document.getElementById('canto-modal-sintesi');
+  if (sin) sin.textContent = cantoSintesi(cantica, canto);
   const nPos = terz.filter(t=>t[2]?.toLowerCase()==='positive').length;
   const nNeg = terz.filter(t=>t[2]?.toLowerCase()==='negative').length;
   document.getElementById('canto-modal-sub').textContent =
@@ -2684,6 +2739,7 @@ function renderPostPage() {
 
 function renderElementi(data) {
   elementiCatalog = data;
+  window.elementiCatalog = data;
   renderPersPage();
   renderPostPage();
 
@@ -3047,6 +3103,7 @@ $(()=>{
         <div class="d-flex align-items-center gap-2">
           <span id="canto-modal-badge" class="cantica-pill"></span>
           <span id="canto-modal-title">Canto</span>
+          <span id="canto-modal-sintesi" class="canto-sintesi"></span>
           <span id="canto-modal-sub" style="color:var(--muted);font-size:.78rem;margin-left:.4rem"></span>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
