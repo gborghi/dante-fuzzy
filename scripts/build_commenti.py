@@ -150,7 +150,7 @@ def epub_concat(path: Path) -> str:
         return "\n".join(chunks)
 
 
-def clean(s: str, limit=720) -> str:
+def clean(s: str, limit=20000) -> str:
     s = re.sub(r"\s+", " ", s).strip()
     s = re.sub(r"Page \d+\s*", "", s)
     s = s.replace(" ,", ",").replace(" .", ".")
@@ -422,10 +422,10 @@ def parse_verse_txt(path: Path, author: str, year: int, default_cantica: str | N
                      f"{author.title()} {year}, {cantica} {canto} (argomento)", True)
         elif not re.match(r"\s*\d", body[:200]):
             para = re.split(r"\n\s*\d{1,3}\s*[.:\-]", body, maxsplit=1)[0]
-            add_note(store, cantica, canto, [], author, para[:1100],
+            add_note(store, cantica, canto, [], author, para,
                      f"{author.title()} {year}, {cantica} {canto}", True)
         for nm in re.finditer(
-            r"(?:(?<=\n)|(?<=^))\s*(?P<spec>\d{1,3}(?:\s*[-–—]\s*\d{1,3})?)\s*[.:]\s+(?P<body>.{40,900}?)(?=\n\s*\d{1,3}(?:\s*[-–—]\s*\d{1,3})?\s*[.:]|\Z)",
+            r"(?:(?<=\n)|(?<=^))\s*(?P<spec>\d{1,3}(?:\s*[-–—]\s*\d{1,3})?)\s*[.:]\s+(?P<body>.+?)(?=\n\s*\d{1,3}(?:\s*[-–—]\s*\d{1,3})?\s*[.:]|\Z)",
             body, re.S,
         ):
             add_note(
@@ -453,7 +453,7 @@ def parse_tommaseo():
             continue
         # ragionamento: first 900 chars
         add_note(
-            store, "Inferno", canto, [], "tommaseo", body[:1200],
+            store, "Inferno", canto, [], "tommaseo", body,
             f"Tommaseo 1865, Inferno {canto}",
             canto_level=True,
         )
@@ -477,31 +477,74 @@ def merge(*stores):
             out[k]["canto"].extend(v.get("canto") or [])
             for tz, notes in (v.get("tz") or {}).items():
                 out[k]["tz"].setdefault(tz, []).extend(notes)
-    # dedupe similar starts per author/tz
     for k, v in out.items():
-        v["canto"] = _dedupe(v["canto"])[:8]
+        v["canto"] = _dedupe(v["canto"])
         for tz in list(v["tz"]):
-            v["tz"][tz] = _dedupe(v["tz"][tz])[:12]
+            v["tz"][tz] = _dedupe(v["tz"][tz])
             if not v["tz"][tz]:
                 del v["tz"][tz]
     return out
 
 
 def _dedupe(notes):
+    # exact-prefix only: drop OCR duplicates, keep every distinct note
     seen = set()
-    by_a = {}
+    out = []
     for n in notes:
-        sig = (n["a"], n["t"][:80])
+        sig = (n["a"], n["t"][:120])
         if sig in seen:
             continue
         seen.add(sig)
-        by_a.setdefault(n["a"], []).append(n)
-    out = []
-    # keep up to 2 excerpts per author so later sources remain visible
-    authors = list(by_a)
-    for a in authors:
-        out.extend(by_a[a][:2])
+        out.append(n)
     return out
+
+
+def write_author_files(alls):
+    by_a = {aid: {"id": aid, **meta, "canti": {}} for aid, meta in AUTHORS.items()}
+    for key, v in alls.items():
+        try:
+            cant, num = key.split(":")
+            num = str(int(num))
+        except Exception:
+            continue
+        if cant not in ("Inferno", "Purgatorio", "Paradiso"):
+            continue
+        if not (1 <= int(num) <= 34):
+            continue
+        for n in v.get("canto") or []:
+            aid = n["a"]
+            if aid not in by_a:
+                continue
+            slot = by_a[aid]["canti"].setdefault(f"{cant}:{num}", {"canto": [], "tz": {}})
+            slot["canto"].append({"t": n["t"], "cite": n["cite"]})
+        for tz, notes in (v.get("tz") or {}).items():
+            for n in notes:
+                aid = n["a"]
+                if aid not in by_a:
+                    continue
+                slot = by_a[aid]["canti"].setdefault(f"{cant}:{num}", {"canto": [], "tz": {}})
+                slot["tz"].setdefault(str(tz), []).append({"t": n["t"], "cite": n["cite"]})
+    index = {"authors": []}
+    for aid, payload in by_a.items():
+        dest = OUT / f"{aid}.json"
+        dest.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        n_c = len(payload["canti"])
+        n_n = sum(
+            len(c.get("canto") or []) + sum(len(x) for x in (c.get("tz") or {}).values())
+            for c in payload["canti"].values()
+        )
+        print(aid, "canti", n_c, "notes", n_n, "bytes", dest.stat().st_size)
+        if n_n:
+            index["authors"].append({
+                "id": aid,
+                "name": payload["name"],
+                "work": payload["work"],
+                "year": payload["year"],
+                "lang": payload["lang"],
+                "file": f"{aid}.json",
+            })
+    (OUT / "index.json").write_text(json.dumps(index, ensure_ascii=False, indent=2))
+    print("index authors", [a["id"] for a in index["authors"]])
 
 
 def main():
@@ -528,19 +571,7 @@ def main():
     for i, e in enumerate(extras):
         print("  extra", i, "keys", len(e))
     alls = merge(t, s, l, m, *extras)
-    by_c = {"Inferno": {}, "Purgatorio": {}, "Paradiso": {}}
-    for k, v in alls.items():
-        cant, canto = k.split(":")
-        if cant not in by_c:
-            continue
-        by_c[cant][str(int(canto))] = v
-    meta = {"authors": AUTHORS}
-    for cant, data in by_c.items():
-        payload = {"authors": AUTHORS, "canti": data}
-        dest = OUT / f"{cant}.json"
-        dest.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
-        n_tz = sum(len(x.get("tz") or {}) for x in data.values())
-        print(cant, "canti", len(data), "terzine-con-note", n_tz, "bytes", dest.stat().st_size)
+    write_author_files(alls)
 
 
 if __name__ == "__main__":

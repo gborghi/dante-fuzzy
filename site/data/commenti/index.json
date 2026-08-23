@@ -1,0 +1,68 @@
+{
+  "authors": [
+    {
+      "id": "tozer",
+      "name": "H. F. Tozer",
+      "work": "An English Commentary on Dante’s Divina Commedia",
+      "year": 1901,
+      "lang": "en",
+      "file": "tozer.json"
+    },
+    {
+      "id": "scartazzini",
+      "name": "G. A. Scartazzini",
+      "work": "La Divina Commedia commentata",
+      "year": 1874,
+      "lang": "it",
+      "file": "scartazzini.json"
+    },
+    {
+      "id": "longfellow",
+      "name": "H. W. Longfellow",
+      "work": "The Divine Comedy (Notes)",
+      "year": 1867,
+      "lang": "en",
+      "file": "longfellow.json"
+    },
+    {
+      "id": "tommaseo",
+      "name": "Niccolò Tommaseo",
+      "work": "Commedia con ragionamenti e note",
+      "year": 1865,
+      "lang": "it",
+      "file": "tommaseo.json"
+    },
+    {
+      "id": "torraca",
+      "name": "Francesco Torraca",
+      "work": "La Divina Commedia nuovamente commentata",
+      "year": 1905,
+      "lang": "it",
+      "file": "torraca.json"
+    },
+    {
+      "id": "campi",
+      "name": "Giuseppe Campi",
+      "work": "La Divina Commedia ridotta a miglior lezione",
+      "year": 1888,
+      "lang": "it",
+      "file": "campi.json"
+    },
+    {
+      "id": "bianchi",
+      "name": "Brunone Bianchi",
+      "work": "La Commedia di Dante Alighieri",
+      "year": 1857,
+      "lang": "it",
+      "file": "bianchi.json"
+    },
+    {
+      "id": "fraticelli",
+      "name": "Pietro Fraticelli",
+      "work": "La Divina Commedia col comento",
+      "year": 1881,
+      "lang": "it",
+      "file": "fraticelli.json"
+    }
+  ]
+}

@@ -1465,7 +1465,8 @@ function createTercetCards(cantica, canto, $el) {
 // ═══════════════════════════════════════════════════════════
 //  COMMENTI (PD: Tozer, Scartazzini, Longfellow, Tommaseo)
 // ═══════════════════════════════════════════════════════════
-let commentiByCantica = {};
+let commentiReady = null;
+let commentiAuthors = {};
 let _commentiModal = null;
 
 function commBtnHtml(cantica, canto, tz) {
@@ -1473,24 +1474,29 @@ function commBtnHtml(cantica, canto, tz) {
   return `<button type="button" class="btn-comm" data-cantica="${cantica}" data-canto="${canto}"${t} title="Commenti d’autore">note</button>`;
 }
 
-function loadCommenti(cantica) {
-  if (commentiByCantica[cantica]) return Promise.resolve(commentiByCantica[cantica]);
-  return fetch('data/commenti/' + encodeURIComponent(cantica) + '.json')
+function loadAllCommenti() {
+  if (commentiReady) return commentiReady;
+  commentiReady = fetch('data/commenti/index.json')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(d => { commentiByCantica[cantica] = d; return d; })
-    .catch(() => {
-      const empty = { authors: {}, canti: {} };
-      commentiByCantica[cantica] = empty;
-      return empty;
-    });
+    .then(idx => Promise.all((idx.authors || []).map(a =>
+      fetch('data/commenti/' + a.file)
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(d => { commentiAuthors[a.id] = d; })
+    )))
+    .catch(err => { console.error('commenti', err); });
+  return commentiReady;
 }
 
 function notesFor(cantica, canto, tz) {
-  const pack = commentiByCantica[cantica];
-  const c = pack && pack.canti && pack.canti[String(canto)];
-  if (!c) return [];
-  if (tz == null || tz === '') return c.canto || [];
-  return (c.tz && c.tz[String(tz)]) || [];
+  const key = cantica + ':' + canto;
+  const out = [];
+  Object.entries(commentiAuthors).forEach(([id, pack]) => {
+    const c = pack.canti && pack.canti[key];
+    if (!c) return;
+    const list = (tz == null || tz === '') ? (c.canto || []) : ((c.tz || {})[String(tz)] || []);
+    list.forEach(n => out.push({ a: id, t: n.t, cite: n.cite, meta: pack }));
+  });
+  return out;
 }
 
 function markEmptyCommButtons(root) {
@@ -1502,9 +1508,8 @@ function markEmptyCommButtons(root) {
 }
 
 function openCommentiModal(cantica, canto, tz) {
-  loadCommenti(cantica).then(() => {
+  loadAllCommenti().then(() => {
     const notes = notesFor(cantica, canto, tz);
-    const authors = (commentiByCantica[cantica] || {}).authors || {};
     const title = tz
       ? `${cantica} ${canto} · terzina ${tz}`
       : `${cantica} ${canto} · commento al canto`;
@@ -1517,15 +1522,15 @@ function openCommentiModal(cantica, canto, tz) {
       const byA = {};
       notes.forEach(n => { (byA[n.a] = byA[n.a] || []).push(n); });
       elBody.innerHTML = Object.entries(byA).map(([id, list]) => {
-        const meta = authors[id] || { name: id, work: '', year: '' };
-        const head = `${meta.name}${meta.year ? ' (' + meta.year + ')' : ''}`;
+        const meta = (list[0] && list[0].meta) || commentiAuthors[id] || { name: id };
+        const head = `${meta.name || id}${meta.year ? ' (' + meta.year + ')' : ''}`;
         const work = meta.work ? `<div class="comm-cite">${esc(meta.work)}</div>` : '';
         const items = list.map(n => `
           <div class="d-card" style="margin:.4rem 0">
             <div class="comm-body">${esc(n.t)}</div>
             <div class="comm-cite">— ${esc(n.cite || head)}</div>
           </div>`).join('');
-        return `<section class="comm-author"><h3>${esc(head)}</h3>${work}${items}</section>`;
+        return `<section class="comm-author"><h3>${esc(head)}</h3>${work}<div style="color:var(--muted);font-size:.75rem;margin-bottom:.3rem">${list.length} note</div>${items}</section>`;
       }).join('');
     }
     const modalEl = document.getElementById('commentiModal');
@@ -1647,7 +1652,7 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   modalEl.addEventListener('shown.bs.modal', scrollHits, { once: true });
   _cantoModalInstance.show();
   setTimeout(scrollHits, 450);
-  loadCommenti(cantica).then(() => markEmptyCommButtons(modalEl));
+  loadAllCommenti().then(() => markEmptyCommButtons(modalEl));
 }
 
 // ═══════════════════════════════════════════════════════════
