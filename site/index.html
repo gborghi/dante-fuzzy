@@ -384,6 +384,9 @@
     .el-pager { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .6rem 0; font-size: .9rem; color: var(--muted); }
     .el-pager button { background: transparent; border: 1px solid var(--border); color: var(--gold); border-radius: 4px; padding: .15rem .55rem; }
     .el-pager button:disabled { opacity: .4; }
+    .algo-list { display: flex; flex-direction: column; gap: .45rem; }
+    .algo-list label { cursor: pointer; }
+    .algo-list input { margin-right: .4rem; }
   </style>
 </head>
 <body>
@@ -417,6 +420,8 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-sentiment">🎭 Sentiment</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-topic">🗂 Topic</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-elementi">📜 Elementi</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-infografiche">🖼 Infografiche</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-algoritmo">⚙ Algoritmo</a></li>
   </ul>
 </div>
 
@@ -819,6 +824,71 @@
   </div>
 </div>
 
+<div class="tab-pane fade" id="tab-infografiche">
+  <ul class="nav el-sub" id="igSub">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#ig-cosmo">Sezione</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-time">Timeline</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-contra">Contrapasso</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-graph">Grafo</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-firenze">Firenze</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-voci">Voci</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-rosa">Rosa</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-arb">Arbitrio</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-guide">Guide</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-rima">Terzina</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-heat">Lessico</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-sent">Flusso</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-cit">Citazioni</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-eu">Europa</a></li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="ig-cosmo"></div>
+    <div class="tab-pane fade" id="ig-time"></div>
+    <div class="tab-pane fade" id="ig-contra"></div>
+    <div class="tab-pane fade" id="ig-graph"></div>
+    <div class="tab-pane fade" id="ig-firenze"></div>
+    <div class="tab-pane fade" id="ig-voci"></div>
+    <div class="tab-pane fade" id="ig-rosa"></div>
+    <div class="tab-pane fade" id="ig-arb"></div>
+    <div class="tab-pane fade" id="ig-guide"></div>
+    <div class="tab-pane fade" id="ig-rima"></div>
+    <div class="tab-pane fade" id="ig-heat"></div>
+    <div class="tab-pane fade" id="ig-sent"></div>
+    <div class="tab-pane fade" id="ig-cit"></div>
+    <div class="tab-pane fade" id="ig-eu"></div>
+  </div>
+</div>
+
+<div class="tab-pane fade" id="tab-algoritmo">
+  <p class="cosmo-intro">Scegli come cerca la barra UMAP (e le terzine evidenziate). «Per concetto» usa similarità TF-IDF sulle terzine, senza scaricare modelli.</p>
+  <div class="d-card mb-3">
+    <div class="d-card-title">Motore</div>
+    <div class="algo-list">
+      <label><input type="radio" name="algo" value="exact" checked> 1. Esatto + stem + AND/OR</label>
+      <label><input type="radio" name="algo" value="typo"> 2. Typo (Levenshtein)</label>
+      <label><input type="radio" name="algo" value="bm25"> 3. BM25 (ranking)</label>
+      <label><input type="radio" name="algo" value="facet"> 4. Incrociata (filtri)</label>
+      <label><input type="radio" name="algo" value="expand"> 5. Espansione (tesauro)</label>
+      <label><input type="radio" name="algo" value="concept"> 6. Per concetto (embedding TF-IDF)</label>
+    </div>
+  </div>
+  <div class="d-card" id="algo-facet-box">
+    <div class="d-card-title">Filtri incrociati</div>
+    <div class="row g-2">
+      <div class="col-md-4"><label class="small" style="color:var(--muted)">Cantica</label>
+        <select id="algo-cantica" class="form-select form-select-sm">
+          <option value="all">Tutte</option>
+          <option>Inferno</option><option>Purgatorio</option><option>Paradiso</option>
+        </select></div>
+      <div class="col-md-4"><label class="small" style="color:var(--muted)">Personaggio</label>
+        <select id="algo-pers" class="form-select form-select-sm"><option value="">—</option></select></div>
+      <div class="col-md-4"><label class="small" style="color:var(--muted)">Vizio</label>
+        <select id="algo-vizio" class="form-select form-select-sm"><option value="">—</option></select></div>
+    </div>
+  </div>
+  <p id="algo-hint" style="color:var(--muted);margin-top:1rem;font-size:.9rem"></p>
+</div>
+
 </div><!-- tab-content -->
 </div><!-- main-content -->
 
@@ -834,6 +904,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
 <script src="js/stem-it.js"></script>
+<script src="js/search-engines.js"></script>
+<script src="js/infografiche.js"></script>
 <script>
 'use strict';
 
@@ -2408,7 +2480,7 @@ function renderRegionWordCloud(cantica, cantos) {
 // ═══════════════════════════════════════════════════════════
 //  URL + TOPICS
 // ═══════════════════════════════════════════════════════════
-const TAB_IDS = ['umap','cosmologia','concordanze','frequenze','rete','sentiment','topic','elementi'];
+const TAB_IDS = ['umap','cosmologia','concordanze','frequenze','rete','sentiment','topic','elementi','infografiche','algoritmo'];
 let topicCatalog = null;
 let elementiCatalog = null;
 
@@ -2627,6 +2699,19 @@ function jumpEl(kind, id) {
   }
 }
 
+function fillAlgoFacets(el) {
+  const p = document.getElementById('algo-pers');
+  const v = document.getElementById('algo-vizio');
+  if (p) {
+    p.innerHTML = '<option value="">—</option>' + (el.personaggi || []).map(x =>
+      `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  }
+  if (v) {
+    v.innerHTML = '<option value="">—</option>' + (el.vizi || []).map(x =>
+      `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('');
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
@@ -2638,6 +2723,7 @@ $(()=>{
     $('#loading-msg').text('Costruzione motore NLP...');
     setTimeout(()=>{
       nlpEngine=new DanteNLP(globalTercet);
+      if (window.SearchEngines) SearchEngines.init(globalTercet, window._danteThesaurus || {});
       const st=nlpEngine.stats();
       $('#s-canti').text(st.canti);
       $('#s-terzine').text(st.terzine.toLocaleString('it'));
@@ -2663,11 +2749,16 @@ $(()=>{
     loadJson('data/terzine.json'),
     loadJson('data/topics.json').catch(() => ({topics:[]})),
     loadJson('data/elementi.json').catch(() => ({})),
-  ]).then(([canti, terzine, topics, elementi]) => {
+    loadJson('data/infografiche.json').catch(() => ({})),
+    loadJson('data/thesaurus.json').catch(() => ({})),
+  ]).then(([canti, terzine, topics, elementi, info, thes]) => {
     globalData = canti;
     globalTercet = terzine;
     renderTopics(topics);
     renderElementi(elementi);
+    if (typeof renderInfografiche === 'function') renderInfografiche(info);
+    window._danteThesaurus = thes;
+    fillAlgoFacets(elementi);
     checkReady();
     checkReady();
   }).catch(err => {
@@ -2695,11 +2786,24 @@ $(()=>{
   $('#searchBar').on('keydown',e=>{if(e.key==='Enter')$('#searchButton').click();});
 
   $('#searchButton').on('click',function(){
-    const q=$('#searchBar').val().trim().toLowerCase();
+    const q=$('#searchBar').val().trim();
     if(!q){alert('Inserisci un termine.');return;}
-    conditions=parseQuery(q);
+    const mode = document.querySelector('input[name="algo"]:checked')?.value || 'exact';
+    conditions=parseQuery(q.toLowerCase());
     if(!globalData)return;
-    highlightedPoints=globalData.map((d,i)=>evalQuery(d.text||'',conditions,similarityThreshold)?i:null).filter(x=>x!==null);
+    const facet = {
+      cantica: $('#algo-cantica').val() || 'all',
+      personaggio: $('#algo-pers').val() || '',
+      vizio: $('#algo-vizio').val() || ''
+    };
+    let hits = [];
+    if (window.SearchEngines?.ready && mode !== 'exact') {
+      hits = SearchEngines.search(q.toLowerCase(), {mode, facet});
+      const keys = new Set(hits.map(h => `${h.cantica}_${h.canto}`));
+      highlightedPoints = globalData.map((d,i) => keys.has(`${d.cantica}_${d.canto}`) ? i : null).filter(x=>x!==null);
+    } else {
+      highlightedPoints=globalData.map((d,i)=>evalQuery(d.text||'',conditions,similarityThreshold)?i:null).filter(x=>x!==null);
+    }
     if(!highlightedPoints.length){alert('Nessun risultato.');return;}
     const sz=globalData.map((_,i)=>highlightedPoints.includes(i)?15:7);
     const op=globalData.map((_,i)=>highlightedPoints.includes(i)?1:.2);
@@ -2780,7 +2884,18 @@ $(()=>{
   $('#el-pg-pers').on('click', 'button', function(){ elState.pers.page += +$(this).data('dir'); renderPersPage(); });
   $('#el-pg-post').on('click', 'button', function(){ elState.post.page += +$(this).data('dir'); renderPostPage(); });
 
-  // ── TAB activation ────────────────────────────────
+  $('input[name="algo"]').on('change', function(){
+    const m = this.value;
+    const hints = {
+      exact: 'Concordanza: stem + AND/OR/NOT e virgolette. Fuse solo se alzi lo slider Fuzzy.',
+      typo: 'Tolleranza 1–2 lettere (ugolnio → ugolino).',
+      bm25: 'Ordina i canti per rilevanza; accendi «Terzine» per la lista pesata.',
+      facet: 'Filtra per cantica / personaggio / vizio (luoghi di Elementi) e opzionalmente la query.',
+      expand: 'Aggiunge sinonimi del tesauro (selva → bosco, foresta…).',
+      concept: 'Similarità TF-IDF tra query e terzina (vicinanza lessicale, non MiniLM).'
+    };
+    $('#algo-hint').text(hints[m] || '');
+  });
   $('a[href="#tab-frequenze"]').on('shown.bs.tab',()=>{
     if(!nlpEngine)return;
     renderFreqChart($('#freq-cantica').val(),+$('#freq-topn').val(),$('#stopword-sw').is(':checked'),$('#freq-mode').val(),parseMin('#freq-minfreq',3),parseMax('#freq-maxfreq'));

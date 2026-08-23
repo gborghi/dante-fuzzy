@@ -1,0 +1,14 @@
+{
+  "selva": ["bosco", "foresta", "piaggia", "valle"],
+  "amore": ["amor", "amori", "disio", "desio", "passione"],
+  "giustizia": ["giusto", "giusti", "diritto", "legge", "aquila"],
+  "fede": ["credenza", "credo", "speranza", "carità", "carita"],
+  "esilio": ["esilio", "bando", "caccia", "firenze"],
+  "conoscenza": ["canoscenza", "sapienza", "senno", "ingegno", "folle volo"],
+  "luce": ["luce", "lume", "raggio", "splendore", "chiarore"],
+  "stelle": ["stelle", "stella", "cielo", "sfera"],
+  "peccato": ["peccato", "colpa", "vizio", "fallo"],
+  "virtu": ["virtù", "virtute", "merto", "grazia"],
+  "morte": ["morte", "morti", "morir", "tomba"],
+  "libero": ["libero", "libertà", "volere", "arbitrio"]
+}
