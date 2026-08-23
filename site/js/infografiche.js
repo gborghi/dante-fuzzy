@@ -38,60 +38,126 @@
   function renderGraph(el, data) {
     const g = data.graph || { nodes: [], edges: [] };
     const pers = (root.elementiCatalog && root.elementiCatalog.personaggi) || [];
-    const firstLoc = (id) => (pers.find(p => p.id === id)?.luoghi || [])[0];
-    el.innerHTML = `<p class="cosmo-intro">Layout fisico vis-network: trascina i nodi. Click = primo locus nella Commedia.</p>
-      <div id="ig-vis" style="height:580px;border:1px solid var(--border);border-radius:6px;background:#12100c"></div>`;
+    const vizi = (root.elementiCatalog && root.elementiCatalog.vizi) || [];
+    const virtu = (root.elementiCatalog && root.elementiCatalog.virtu) || [];
+    const byId = Object.fromEntries(pers.map(p => [p.id, p]));
+    const firstLoc = (id) => (byId[id]?.luoghi || [])[0];
+    const locsOf = (id) => byId[id]?.luoghi || [];
+    const viaLocs = (via) => {
+      const out = [];
+      (via || []).forEach(vid => {
+        const v = vizi.find(x => x.id === vid) || virtu.find(x => x.id === vid);
+        (v?.luoghi || []).forEach(l => out.push({ ...l, via: v.name || vid }));
+      });
+      return out;
+    };
+    const openLocs = (title, list) => {
+      const box = el.querySelector('#ig-graph-hits');
+      if (!box) return;
+      const uniq = [];
+      const seen = new Set();
+      (list || []).forEach(l => {
+        if (!l || !l.cantica) return;
+        const k = l.cantica + '|' + l.canto + '|' + (l.tercet || '');
+        if (seen.has(k)) return;
+        seen.add(k); uniq.push(l);
+      });
+      box.style.display = 'block';
+      box.innerHTML = `<div class="d-card-title">${title}</div>
+        <div style="color:var(--muted);margin-bottom:.4rem">${uniq.length} terzine · click per aprire</div>
+        <div class="scroll-area">${uniq.slice(0, 24).map(l => `
+          <button type="button" class="el-locus ig-canto" data-cantica="${l.cantica}" data-canto="${l.canto}" data-tercet="${l.tercet || ''}">
+            <div class="el-ref">${l.cantica} ${l.canto}${l.tercet ? ' · terzina ' + l.tercet : ''}${l.via ? ' · ' + l.via : ''}</div>
+            <div class="el-sn">${(l.snippet || '').slice(0, 160)}</div>
+          </button>`).join('') || '<p style="color:var(--muted)">Nessuna terzina collegata.</p>'}</div>`;
+      if (uniq[0]) jump(uniq[0].cantica, uniq[0].canto, uniq[0].tercet);
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    el.innerHTML = `
+      <div class="d-card mb-2" style="font-size:.9rem;line-height:1.5">
+        <div class="d-card-title">Come si usa</div>
+        <p style="margin:0">Ogni <strong>nodo</strong> è un personaggio. Un <strong>arco</strong> li unisce se condividono un vizio o una virtù.
+        <strong>Rosso</strong> = dannati/penitenti, <strong>verde</strong> = beati/guide.
+        <strong>Trascina</strong> i riquadri, rotella per zoom.
+        <strong>Click sul nome</strong> → terzine di quel personaggio.
+        <strong>Click sulla linea</strong> → terzine del vizio/virtù in comune.</p>
+      </div>
+      <div id="ig-vis" style="height:560px;border:1px solid var(--border);border-radius:6px;background:#12100c"></div>
+      <div id="ig-graph-hits" class="mt-3" style="display:none"></div>`;
+
     if (!root.vis || !root.vis.Network) {
-      el.querySelector('#ig-vis').innerHTML = '<p style="color:var(--muted);padding:2rem">vis-network non caricato.</p>';
+      el.querySelector('#ig-vis').innerHTML = '<p style="color:var(--muted);padding:2rem">vis-network non caricato (controlla la rete / CSP).</p>';
       return;
     }
+
     const nodes = new vis.DataSet(g.nodes.map(nd => {
       const damned = nd.vizi && nd.vizi.length;
       return {
         id: nd.id,
         label: nd.name,
-        loc: firstLoc(nd.id),
+        title: (damned ? 'Vizi: ' + (nd.vizi || []).join(', ') : 'Virtù: ' + (nd.virtu || []).join(', ')) || nd.name,
         color: {
-          background: damned ? '#7a241c' : '#2a4d28',
-          border: damned ? '#e8c15a' : '#8fbc7a',
-          highlight: { background: '#e8c15a', border: '#fff3c4' }
+          background: damned ? '#f0c9c4' : '#cfe3c8',
+          border: damned ? '#8a2a22' : '#2a4d28',
+          highlight: { background: '#e8c15a', border: '#1a1400' }
         },
-        font: { color: '#efe6d4', size: 15, face: 'Cinzel, serif' },
-        shape: 'dot',
-        size: damned ? 18 : 16
+        font: { color: '#1a1400', size: 16, face: 'Source Sans 3, sans-serif', bold: true },
+        shape: 'box',
+        margin: 10
       };
     }));
     const edges = new vis.DataSet((g.edges || []).map((e, i) => ({
-      id: i, from: e.a, to: e.b,
-      color: { color: 'rgba(232,193,90,.28)', highlight: '#e8c15a' },
-      width: 1.2
+      id: i, from: e.a, to: e.b, via: e.via || [],
+      title: 'In comune: ' + ((e.via || []).join(', ') || '—'),
+      color: { color: '#c9a03a', highlight: '#fff3c4', hover: '#e8c15a' },
+      width: 3, hoverWidth: 6, selectionWidth: 6
     })));
-    if (el._visNet) { try { el._visNet.destroy(); } catch (e) {} }
+    if (el._visNet) { try { el._visNet.destroy(); } catch (err) {} }
     const net = new vis.Network(el.querySelector('#ig-vis'), { nodes, edges }, {
       physics: {
         solver: 'barnesHut',
         barnesHut: {
-          gravitationalConstant: -6500,
-          springLength: 140,
-          springConstant: 0.04,
-          damping: 0.35,
-          avoidOverlap: 0.7
+          gravitationalConstant: -8000,
+          springLength: 180,
+          springConstant: 0.035,
+          damping: 0.4,
+          avoidOverlap: 1
         },
-        stabilization: { iterations: 250 }
+        stabilization: { iterations: 280 }
       },
-      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true, tooltipDelay: 80 },
-      nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,.45)', size: 8 } },
-      edges: { smooth: { type: 'dynamic' } }
+      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true, tooltipDelay: 60, selectConnectedEdges: false },
+      nodes: { borderWidth: 2, shadow: false },
+      edges: { smooth: { type: 'continuous' }, chosen: true }
     });
     el._visNet = net;
     net.on('click', (p) => {
-      if (!p.nodes.length) return;
-      const nd = nodes.get(p.nodes[0]);
-      if (nd && nd.loc) jump(nd.loc.cantica, nd.loc.canto, nd.loc.tercet);
+      if (p.nodes && p.nodes.length) {
+        const id = p.nodes[0];
+        const person = byId[id];
+        openLocs(person ? person.name : id, locsOf(id));
+        return;
+      }
+      if (p.edges && p.edges.length) {
+        const ed = edges.get(p.edges[0]);
+        if (!ed) return;
+        const A = byId[ed.from], B = byId[ed.to];
+        const title = `${A?.name || ed.from} — ${B?.name || ed.to}`;
+        const shared = [];
+        const seen = new Set();
+        locsOf(ed.from).concat(locsOf(ed.to)).forEach(l => {
+          const k = l.cantica + '|' + l.canto + '|' + l.tercet;
+          if (!seen.has(k)) { seen.add(k); shared.push(l); }
+        });
+        viaLocs(ed.via).forEach(l => {
+          const k = l.cantica + '|' + l.canto + '|' + l.tercet;
+          if (!seen.has(k)) { seen.add(k); shared.push(l); }
+        });
+        openLocs(title + (ed.via?.length ? ' · ' + ed.via.join(', ') : ''), shared);
+      }
     });
-    const pane = document.querySelector('#mainTabs a[href="#tab-infografiche"]');
+    const fit = () => { try { net.fit({ animation: true }); } catch (err) {} };
     const sub = document.querySelector('#igSub a[href="#ig-graph"]');
-    const fit = () => { try { net.fit({ animation: true }); } catch (e) {} };
     if (sub) sub.addEventListener('shown.bs.tab', () => setTimeout(fit, 80));
     setTimeout(fit, 200);
   }

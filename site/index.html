@@ -263,10 +263,11 @@
       letter-spacing: .06em; font-size: 1rem; white-space: nowrap;
     }
     .canto-sintesi {
-      font-size: .82rem; color: var(--text); line-height: 1.35;
+      font-size: .8rem; color: var(--text); line-height: 1.4;
       border-left: 2px solid var(--gold-dim); padding-left: .55rem; margin-left: .15rem;
-      max-width: min(52vw, 28rem);
+      max-width: min(58vw, 34rem); display: block;
     }
+    .canto-sintesi strong { color: var(--gold); font-weight: 600; }
     .modal-header .d-flex { flex-wrap: wrap; align-items: flex-start !important; }
     .terzina-card.terzina-focus {
       outline: none;
@@ -1447,48 +1448,51 @@ let _cantoModalInstance = null;
 function cantoSintesi(cantica, canto) {
   const n = +canto;
   const blurbs = {
-    'Inferno:1': 'Selva, tre fiere, incontro a Virgilio',
-    'Inferno:2': 'Dubbio di Dante; Beatrice manda Virgilio',
-    'Inferno:3': 'Porta dell’Inferno; ignavi; Caronte',
-    'Inferno:5': 'Minosse; lussuriosi; Francesca e Paolo',
-    'Inferno:6': 'Cerbero e Ciacco; profezia su Firenze',
-    'Inferno:10': 'Eretici; Farinata e Cavalcante',
-    'Inferno:13': 'Suicidi; Pier della Vigna',
-    'Inferno:15': 'Brunetto Latini e la fama',
-    'Inferno:26': 'Ulisse: il folle volo',
-    'Inferno:27': 'Guido da Montefeltro',
-    'Inferno:33': 'Ugolino nella torre',
-    'Inferno:34': 'Lucifero; uscita verso le stelle',
-    'Purgatorio:1': 'Spiaggia; Catone; il giunco',
-    'Purgatorio:16': 'Marco Lombardo e il libero arbitrio',
-    'Purgatorio:24': 'Bonagiunta e il dolce stil novo',
-    'Purgatorio:26': 'Guinizzelli e Arnaut',
-    'Purgatorio:30': 'Beatrice compare; Virgilio scompare',
-    'Paradiso:3': 'Piccarda e i voti spezzati',
-    'Paradiso:6': 'Giustiniano e l’Aquila',
-    'Paradiso:11': 'Tommaso racconta Francesco',
-    'Paradiso:17': 'Cacciaguida: profezia dell’esilio',
-    'Paradiso:33': 'Bernardo; preghiera a Maria; visione'
+    'Inferno:1': 'Dante si smarrisce nella <strong>selva</strong>. Tre fiere gli sbarrano il colle. Compare <strong>Virgilio</strong>, mandato da Beatrice.',
+    'Inferno:2': 'Dante dubita della missione. Virgilio racconta come <strong>Beatrice</strong>, Lucia e Maria lo abbiano inviato.',
+    'Inferno:3': '«Lasciate ogne speranza»: porta dell’<strong>Inferno</strong>, <strong>ignavi</strong> e <strong>Caronte</strong> sull’Acheronte.',
+    'Inferno:5': '<strong>Minosse</strong> giudica. Nel vento i <strong>lussuriosi</strong>: <strong>Francesca</strong> e Paolo raccontano il bacio.',
+    'Inferno:6': '<strong>Cerbero</strong> e la pioggia. <strong>Ciacco</strong> predice le lotte di Firenze.',
+    'Inferno:10': 'Sepolcri infuocati: <strong>Farinata</strong> e Cavalcante, eretici e memoria civile.',
+    'Inferno:13': 'Bosco dei <strong>suicidi</strong>. <strong>Pier della Vigna</strong> parla dal tronco ferito.',
+    'Inferno:15': 'Sabbia infuocata. <strong>Brunetto Latini</strong> insegna a Dante come l’uomo s’etterna.',
+    'Inferno:26': 'Fiamma di <strong>Ulisse</strong>: il <strong>folle volo</strong> oltre le Colonne d’Ercole.',
+    'Inferno:27': 'Nella stessa fiamma <strong>Guido da Montefeltro</strong> e il consiglio fraudolento a Bonifacio.',
+    'Inferno:33': '<strong>Ugolino</strong> rode Ruggieri e racconta la <strong>torre</strong> della fame.',
+    'Inferno:34': '<strong>Lucifero</strong> nel ghiaccio; Dante e Virgilio escono «a riveder le <strong>stelle</strong>».',
+    'Purgatorio:1': 'Alba sulla spiaggia. <strong>Catone</strong>; il <strong>giunco</strong> umile cinge Dante.',
+    'Purgatorio:16': 'Fumo dell’ira. <strong>Marco Lombardo</strong> spiega il <strong>libero arbitrio</strong>.',
+    'Purgatorio:24': '<strong>Bonagiunta</strong> riconosce il <strong>dolce stil novo</strong> di Dante.',
+    'Purgatorio:26': 'Fiamma dei lussuriosi: <strong>Guinizzelli</strong> e <strong>Arnaut</strong> Daniel.',
+    'Purgatorio:30': 'Compare <strong>Beatrice</strong>; <strong>Virgilio</strong> scompare. Il rimprovero nel Eden.',
+    'Paradiso:3': 'Sfera della Luna: <strong>Piccarda</strong> e i <strong>voti</strong> spezzati.',
+    'Paradiso:6': '<strong>Giustiniano</strong> narra l’<strong>Aquila</strong> e la storia di Roma.',
+    'Paradiso:11': '<strong>Tommaso</strong> loda <strong>Francesco</strong> nel cielo del Sole.',
+    'Paradiso:17': '<strong>Cacciaguida</strong> predice l’<strong>esilio</strong> e comanda di dire la verità.',
+    'Paradiso:33': '<strong>Bernardo</strong> prega <strong>Maria</strong>; Dante vede l’<strong>amor che move il sole</strong>.'
   };
   const hit = blurbs[`${cantica}:${n}`];
   if (hit) return hit;
   const regs = (typeof COSMOLOGY !== 'undefined' && COSMOLOGY[cantica]) || [];
-  let luogo = '';
+  let luogo = '', dettaglio = '';
   for (const r of regs) {
     if (!(r.cantos || []).includes(n)) continue;
-    luogo = r.sub ? `${r.name} · ${r.sub}` : r.name;
+    luogo = r.name || '';
+    dettaglio = r.sub || '';
     if (r.subregions) {
       const sr = r.subregions.find(s => (s.cantos || []).includes(n));
-      if (sr) luogo = `${sr.name} · ${sr.sub}`;
+      if (sr) { luogo = sr.name || luogo; dettaglio = sr.sub || dettaglio; }
     }
   }
   const pers = ((window.elementiCatalog || {}).personaggi || [])
     .filter(p => (p.luoghi || []).some(l => l.cantica === cantica && +l.canto === n))
     .map(p => p.name)
     .filter((name, i, a) => a.indexOf(name) === i)
-    .slice(0, 3);
-  const bits = [luogo, pers.length ? pers.join(', ') : ''].filter(Boolean);
-  return bits.join(' · ') || `${cantica}, canto ${n}`;
+    .slice(0, 4);
+  const names = pers.map(p => `<strong>${p}</strong>`).join(', ');
+  const line1 = luogo ? `Luogo: <strong>${luogo}</strong>${dettaglio ? ' — ' + dettaglio : ''}.` : `${cantica}, canto ${n}.`;
+  const line2 = names ? `Voci: ${names}.` : 'Nessun personaggio catalogato in questo canto.';
+  return `${line1} ${line2}`;
 }
 
 function openCantoModal(cantica, canto, highlightTz=null) {
@@ -1504,7 +1508,7 @@ function openCantoModal(cantica, canto, highlightTz=null) {
     (cantica==='Inferno'?'pill-inf':cantica==='Purgatorio'?'pill-pur':'pill-par');
   document.getElementById('canto-modal-title').textContent = `Canto ${canto}`;
   const sin = document.getElementById('canto-modal-sintesi');
-  if (sin) sin.textContent = cantoSintesi(cantica, canto);
+  if (sin) sin.innerHTML = cantoSintesi(cantica, canto);
   const nPos = terz.filter(t=>t[2]?.toLowerCase()==='positive').length;
   const nNeg = terz.filter(t=>t[2]?.toLowerCase()==='negative').length;
   document.getElementById('canto-modal-sub').textContent =
