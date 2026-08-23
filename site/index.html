@@ -87,7 +87,8 @@
     .pill-par { background: rgba(36,113,163,.25); color: #7db6da; border: 1px solid rgba(36,113,163,.4); }
 
     /* ── TABS ── */
-    .dante-tabs { background: var(--parch); border-bottom: 1px solid var(--border); padding: 0 1rem; }
+    .dante-tabs { background: var(--parch); border-bottom: 1px solid var(--border); padding: 0 .5rem; }
+    .dante-tabs .nav { display: flex; flex-wrap: wrap; gap: 0; }
     .dante-tabs .nav-link {
       font-family: 'Source Sans 3', sans-serif; font-size: .82rem;
       color: var(--muted); border: none; border-bottom: 2px solid transparent;
@@ -377,6 +378,7 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-frequenze">📊 Frequenze</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-rete">🕸 Rete Lessicale</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-sentiment">🎭 Sentiment</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-topic">🗂 Topic</a></li>
   </ul>
 </div>
 
@@ -737,6 +739,22 @@
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════
+     TAB 6 — TOPIC
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-topic">
+  <p class="cosmo-intro">Cluster lessicali già calcolati sul foglio (colonna Topic). Clicca una scheda per le terzine più rappresentative.</p>
+  <div id="topic-grid" class="row g-2"></div>
+  <div class="d-card mt-3" id="topic-detail" style="display:none">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-card-title mb-0" id="topic-detail-title">Topic</div>
+      <button class="btn btn-outline-parch btn-sm" id="topic-close">✕ Chiudi</button>
+    </div>
+    <div id="topic-detail-meta" style="color:var(--muted);font-size:.8rem;margin:.4rem 0 1rem"></div>
+    <div id="topic-detail-samples"></div>
+  </div>
+</div>
+
 </div><!-- tab-content -->
 </div><!-- main-content -->
 
@@ -747,10 +765,11 @@
 <!-- ═══════════════════════════════════════════════
      SCRIPTS
 ═══════════════════════════════════════════════ -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
+<script src="js/stem-it.js"></script>
 <script>
 'use strict';
 
@@ -922,7 +941,8 @@ class DanteNLP {
       .replace(/[^\w\sàáèéìíòóùú]/g,' ')
       .split(/\s+/)
       .map(w => w.replace(/^'+|'+$/g,''))
-      .filter(w => w.length > 1);
+      .filter(w => w.length > 1)
+      .map(w => (typeof stemIt === 'function' ? stemIt(w) : w));
   }
 
   _build() {
@@ -1064,7 +1084,8 @@ class DanteNLP {
     const res = [];
     const wc = term.includes('*');
     const rx = wc ? new RegExp('^'+term.replace(/\*/g,'.*')+'$') : null;
-    const match = t => wc ? rx.test(t) : t===term;
+    const stem = (!wc && typeof stemIt === 'function') ? stemIt(term) : term;
+    const match = t => wc ? rx.test(t) : (t===term || t===stem);
 
     for (const [c, canti] of Object.entries(this.td)) {
       if (cantica!=='all' && c!==cantica) continue;
@@ -1091,7 +1112,8 @@ class DanteNLP {
     const data = {};
     const wc = term.includes('*');
     const rx = wc ? new RegExp('^'+term.replace(/\*/g,'.*')+'$') : null;
-    const match = t => wc ? rx.test(t) : t===term;
+    const stem = (!wc && typeof stemIt === 'function') ? stemIt(term) : term;
+    const match = t => wc ? rx.test(t) : (t===term || t===stem);
     const cc = cantica==='all' ? CANTICHE : [cantica];
 
     for (const c of cc) {
@@ -1194,8 +1216,10 @@ function plotData(data, view) {
     showscale:false, line:{width:0}
   };
   const base = {mode:'markers', marker, text:data.map(d=>d.name), hoverinfo:'text'};
+  const xs = data.map(d => view==='2d' ? (d.x2d ?? d.x) : d.x);
+  const ys = data.map(d => view==='2d' ? (d.y2d ?? d.y) : d.y);
   const trace = view==='2d'
-    ? {...base, x:data.map(d=>d.x), y:data.map(d=>d.y), type:'scatter'}
+    ? {...base, x:xs, y:ys, type:'scatter'}
     : {...base, x:data.map(d=>d.x), y:data.map(d=>d.y), z:data.map(d=>d.z), type:'scatter3d'};
   const layout = {...PLOTLY_BASE, margin:{l:0,r:0,b:0,t:0},
     ...(view==='2d' ? {dragmode:'select'} : {})};
@@ -1221,7 +1245,7 @@ function bindPlotEvents() {
       const n = (globalData[p.pointIndex]?.name||'').split('_');
       return {year:n[0],type:n[1],category:n[3],number:n[4]};
     });
-    $('#generateQuizButton').toggle(selectedPoints.length > 0);
+    // Quiz Google Form rimosso: era codice delle olimpiadi, non della Commedia.
   });
 }
 
@@ -1270,6 +1294,7 @@ function openCantoModal(cantica, canto, highlightTz=null) {
   const terz = globalTercet?.[cantica]?.[canto]
             || globalTercet?.[cantica]?.[String(canto)];
   if (!terz || !terz.length) return;
+  syncUrl({cantica, canto});
 
   // Header
   const badge = document.getElementById('canto-modal-badge');
@@ -1741,6 +1766,11 @@ function evalQuery(text,cond,thr=0){
     if(c.term){
       const t=c.term.toLowerCase();
       if(thr>0){stack.push(fuse.search(t).length>0);continue;}
+      const stem = (typeof stemIt === 'function') ? stemIt(t) : t;
+      const toks = lo.split(/\s+/).map(w => w.replace(/^'+|'+$/g,''));
+      if (toks.some(w => w===t || ((typeof stemIt==='function') && stemIt(w)===stem))) {
+        stack.push(true); continue;
+      }
       let rx;
       if(t.startsWith('*')&&t.endsWith('*'))rx=new RegExp(`(${t.slice(1,-1)})`,'gi');
       else if(t.startsWith('*'))rx=new RegExp(`(${t.slice(1)})(?=\\s|$|[.,!?;:])`,'gi');
@@ -2281,6 +2311,83 @@ function renderRegionWordCloud(cantica, cantos) {
 }
 
 // ═══════════════════════════════════════════════════════════
+//  URL + TOPICS
+// ═══════════════════════════════════════════════════════════
+const TAB_IDS = ['umap','cosmologia','concordanze','frequenze','rete','sentiment','topic'];
+let topicCatalog = null;
+
+function currentTabId() {
+  const a = document.querySelector('#mainTabs .nav-link.active');
+  const href = a?.getAttribute('href') || '#tab-umap';
+  return href.replace('#tab-','');
+}
+
+function syncUrl(extra={}) {
+  const p = new URLSearchParams();
+  const tab = extra.tab || currentTabId();
+  if (tab && tab !== 'umap') p.set('tab', tab);
+  if (currentView === '3d') p.set('view', '3d');
+  const q = extra.q !== undefined ? extra.q : document.getElementById('searchBar')?.value?.trim();
+  if (q) p.set('q', q);
+  if (extra.cantica) p.set('cantica', extra.cantica);
+  if (extra.canto) p.set('canto', extra.canto);
+  const qs = p.toString();
+  const url = qs ? `${location.pathname}?${qs}` : location.pathname;
+  history.replaceState(null, '', url);
+}
+
+function applyUrl() {
+  const p = new URLSearchParams(location.search);
+  const tab = p.get('tab');
+  if (tab && TAB_IDS.includes(tab)) {
+    const el = document.querySelector(`#mainTabs a[href="#tab-${tab}"]`);
+    if (el && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(el).show();
+    else el?.click();
+  }
+  const view = p.get('view');
+  if (view === '3d') $('#btn-3d').click();
+  const q = p.get('q');
+  if (q) {
+    $('#searchBar').val(q);
+    $('#searchButton').click();
+  }
+  const cantica = p.get('cantica');
+  const canto = p.get('canto');
+  if (cantica && canto) setTimeout(() => openCantoModal(cantica, +canto), 80);
+}
+
+function renderTopics(data) {
+  topicCatalog = data;
+  const grid = document.getElementById('topic-grid');
+  if (!grid) return;
+  grid.innerHTML = (data.topics || []).map(t => {
+    const parts = Object.entries(t.cantiche || {}).map(([k,v]) => `${k}: ${v}`).join(' · ');
+    return `<div class="col-md-6 col-lg-4">
+      <button type="button" class="d-card w-100 text-start topic-card" data-topic="${t.id}"
+              style="cursor:pointer">
+        <div class="d-card-title">${t.id.replace('_',' ')}</div>
+        <div style="font-family:'IM Fell English',serif;font-size:.95rem;margin-bottom:.35rem">${esc(t.label)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${t.n} terzine · ${esc(parts)}</div>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function showTopic(id) {
+  const t = (topicCatalog?.topics || []).find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('topic-detail-title').textContent = `${t.id.replace('_',' ')} — ${t.label}`;
+  const parts = Object.entries(t.cantiche || {}).map(([k,v]) => `${k} ${v}`).join(' · ');
+  document.getElementById('topic-detail-meta').textContent = `${t.n} terzine · ${parts}`;
+  document.getElementById('topic-detail-samples').innerHTML = (t.samples || []).map(s => `
+    <div class="sent-card" data-cantica="${s.cantica}" data-canto="${s.canto}" data-number="${s.tercet}">
+      <div class="t-meta">${s.cantica} · ${s.canto} · ${s.tercet}</div>
+      <div class="t-text">${esc(s.text)}</div>
+    </div>`).join('');
+  document.getElementById('topic-detail').style.display = 'block';
+}
+
+// ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
 $(()=>{
@@ -2303,7 +2410,7 @@ $(()=>{
         <div style="margin-top:.4rem">Esempi: <em style="color:var(--muted)">${hSample}...</em></div>`);
       plotData(globalData, '2d');
       document.getElementById('loading-overlay').style.opacity='0';
-      setTimeout(()=>{document.getElementById('loading-overlay').style.display='none';},600);
+      setTimeout(()=>{document.getElementById('loading-overlay').style.display='none'; applyUrl();},600);
     },40);
   };
 
@@ -2314,9 +2421,11 @@ $(()=>{
   Promise.all([
     loadJson('data/canti.json'),
     loadJson('data/terzine.json'),
-  ]).then(([canti, terzine]) => {
+    loadJson('data/topics.json').catch(() => ({topics:[]})),
+  ]).then(([canti, terzine, topics]) => {
     globalData = canti;
     globalTercet = terzine;
+    renderTopics(topics);
     checkReady();
     checkReady();
   }).catch(err => {
@@ -2356,7 +2465,9 @@ $(()=>{
       colorscale:[[0,'#2471a3'],[.5,'#c87c2a'],[1,'#c0392b']],showscale:false,
       line:{width:globalData.map((_,i)=>highlightedPoints.includes(i)?2:0),color:'#d4a843'}};
     const base={mode:'markers',marker:mk,text:globalData.map(d=>d.name),hoverinfo:'text'};
-    const tr=currentView==='2d'?{...base,x:globalData.map(d=>d.x),y:globalData.map(d=>d.y),type:'scatter'}
+    const xs=globalData.map(d=>currentView==='2d'?(d.x2d??d.x):d.x);
+    const ys=globalData.map(d=>currentView==='2d'?(d.y2d??d.y):d.y);
+    const tr=currentView==='2d'?{...base,x:xs,y:ys,type:'scatter'}
       :{...base,x:globalData.map(d=>d.x),y:globalData.map(d=>d.y),z:globalData.map(d=>d.z),type:'scatter3d'};
     const lay={...PLOTLY_BASE,margin:{l:0,r:0,b:0,t:0},...(currentView==='2d'?{dragmode:'select'}:{})};
     Plotly.newPlot('plot',[tr],lay,PL_OPT);
@@ -2364,6 +2475,7 @@ $(()=>{
     document.getElementById('search-stats-content').innerHTML=`Canti evidenziati: <strong style="color:var(--gold)">${highlightedPoints.length}</strong>`;
     document.getElementById('search-stats-box').style.display='block';
     if(switchActivated)showAllMatchingTercets();
+    syncUrl();
   });
 
   $('#clearButton').on('click',()=>{
@@ -2405,6 +2517,10 @@ $(()=>{
     return (raw === '' || +raw < 0 || isNaN(+raw)) ? Infinity : +raw;
   };
   const parseMin = (sel, def=1) => Math.max(1, +$(sel).val() || def);
+
+  $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(){ syncUrl(); });
+  $('body').on('click', '.topic-card', function(){ showTopic($(this).data('topic')); });
+  $('#topic-close').on('click', () => { document.getElementById('topic-detail').style.display='none'; });
 
   // ── TAB activation ────────────────────────────────
   $('a[href="#tab-frequenze"]').on('shown.bs.tab',()=>{

@@ -26,7 +26,16 @@ Il quiz da punti selezionati resta solo su Apps Script (crea un Google Form).
 
 ## Deploy Cloudflare Pages
 
-Progetto suggerito: `divina-commedia`  
-Output directory: `site`  
-Dominio di default: `divina-commedia.pages.dev`  
-(opzionale) `commedia.fisica-liceo.com` o `dante.pages.dev` se libero.
+Progetto: `divina-commedia`  
+Output directory: `site`
+
+```bash
+npx wrangler pages deploy site --project-name divina-commedia --branch main
+```
+
+CI su push a `main` (secret `CLOUDFLARE_API_TOKEN`, come gli altri siti).
+
+URL previsti: `divina-commedia.pages.dev`  
+Dominio: `commedia.fisica-liceo.com` se lo attacchi al progetto.
+
+Link condivisibili: `?tab=topic`, `?cantica=Inferno&canto=26`, `?q=selva`, `?view=3d`.
