@@ -374,7 +374,15 @@
     .el-locus:hover { border-left-color: var(--gold); }
     .el-locus .el-ref { font-size: .7rem; color: var(--gold); margin-bottom: .2rem; }
     .el-locus .el-sn { font-family: 'IM Fell English', serif; color: var(--muted); }
-    .el-card { margin-bottom: .75rem; }
+    .el-card { margin-bottom: .45rem; }
+    .el-acc { width: 100%; text-align: left; background: transparent; border: 0; color: inherit; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: .6rem; }
+    .el-acc .caret { color: var(--gold); font-size: .75rem; flex: 0 0 auto; }
+    .el-body { display: none; margin-top: .45rem; }
+    .el-card.open .el-body { display: block; }
+    .el-search { width: 100%; background: var(--parch); border: 1px solid var(--border); color: var(--text); border-radius: 4px; padding: .4rem .65rem; margin-bottom: .6rem; font-size: .85rem; }
+    .el-pager { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: .6rem 0; font-size: .78rem; color: var(--muted); }
+    .el-pager button { background: transparent; border: 1px solid var(--border); color: var(--gold); border-radius: 4px; padding: .15rem .55rem; }
+    .el-pager button:disabled { opacity: .4; }
   </style>
 </head>
 <body>
@@ -797,12 +805,20 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-post">Riferimenti posteriori</a></li>
   </ul>
   <div class="tab-content">
-    <div class="tab-pane fade show active" id="el-pers"></div>
+    <div class="tab-pane fade show active" id="el-pers">
+      <input class="el-search" id="el-q-pers" type="search" placeholder="Cerca personaggio, vizio, virtù…">
+      <div id="el-list-pers"></div>
+      <div class="el-pager" id="el-pg-pers"></div>
+    </div>
     <div class="tab-pane fade" id="el-temi"></div>
     <div class="tab-pane fade" id="el-vizi"></div>
     <div class="tab-pane fade" id="el-virtu"></div>
     <div class="tab-pane fade" id="el-dec"></div>
-    <div class="tab-pane fade" id="el-post"></div>
+    <div class="tab-pane fade" id="el-post">
+      <input class="el-search" id="el-q-post" type="search" placeholder="Cerca autore, opera, citazione…">
+      <div id="el-list-post"></div>
+      <div class="el-pager" id="el-pg-post"></div>
+    </div>
   </div>
 </div>
 
@@ -2455,57 +2471,103 @@ function elLocusBtn(loc, tone) {
   </button>`;
 }
 
+function elAcc(id, titleHtml, metaHtml, bodyHtml) {
+  return `<div class="d-card el-card" id="${id}">
+    <button type="button" class="el-acc">
+      <div>
+        <div class="d-card-title">${titleHtml}</div>
+        ${metaHtml || ''}
+      </div>
+      <span class="caret">▸</span>
+    </button>
+    <div class="el-body">${bodyHtml}</div>
+  </div>`;
+}
+
+const EL_PAGE = 12;
+const elState = { pers: {q:'', page:0}, post: {q:'', page:0} };
+
+function elMatch(q, ...parts) {
+  if (!q) return true;
+  const hay = parts.filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q.toLowerCase());
+}
+
+function elPager(el, page, pages, total) {
+  if (!el) return;
+  if (pages <= 1) { el.innerHTML = total ? `${total} risultati` : ''; return; }
+  el.innerHTML = `<button type="button" data-dir="-1" ${page<=0?'disabled':''}>‹</button>
+    <span>pag. ${page+1}/${pages} · ${total}</span>
+    <button type="button" data-dir="1" ${page>=pages-1?'disabled':''}>›</button>`;
+}
+
+function renderPersPage() {
+  const data = elementiCatalog || {};
+  const st = elState.pers;
+  const all = (data.personaggi || []).filter(p => elMatch(st.q, p.name, ...(p.vizi||[]), ...(p.virtu||[]), ...(p.comandamenti||[])));
+  const pages = Math.max(1, Math.ceil(all.length / EL_PAGE));
+  if (st.page >= pages) st.page = pages - 1;
+  const slice = all.slice(st.page * EL_PAGE, (st.page+1) * EL_PAGE);
+  document.getElementById('el-list-pers').innerHTML = slice.map(p => elAcc(
+    'el-p-'+p.id,
+    esc(p.name),
+    `<div>${elChips(p.vizi,'vizi','bad')}${elChips(p.virtu,'virtu','good')}</div>`,
+    (p.luoghi||[]).map(elLocusBtn).join('') || '<span style="color:var(--muted)">Nessun locus</span>'
+  )).join('') || '<p style="color:var(--muted)">Nessun personaggio.</p>';
+  elPager(document.getElementById('el-pg-pers'), st.page, pages, all.length);
+}
+
+function renderPostPage() {
+  const data = elementiCatalog || {};
+  const st = elState.post;
+  const all = (data.posteriori || []).filter(p => elMatch(st.q, p.author, p.work, p.year, p.what));
+  const pages = Math.max(1, Math.ceil(all.length / EL_PAGE));
+  if (st.page >= pages) st.page = pages - 1;
+  const slice = all.slice(st.page * EL_PAGE, (st.page+1) * EL_PAGE);
+  document.getElementById('el-list-post').innerHTML = slice.map((p,i) => elAcc(
+    'el-o-'+st.page+'-'+i,
+    esc(p.author),
+    `<div style="font-size:.8rem"><em>${esc(p.work)}</em> · ${esc(p.year||'')}</div>`,
+    `<p style="font-size:.82rem;color:var(--muted)">${esc(p.what)}</p>
+     ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem">Fonte / testo →</a>` : ''}
+     ${(p.luoghi||[]).map(elLocusBtn).join('')}`
+  )).join('') || '<p style="color:var(--muted)">Nessun autore.</p>';
+  elPager(document.getElementById('el-pg-post'), st.page, pages, all.length);
+}
+
 function renderElementi(data) {
   elementiCatalog = data;
-  const pers = document.getElementById('el-pers');
-  pers.innerHTML = (data.personaggi || []).map(p => `
-    <div class="d-card el-card" id="el-p-${p.id}">
-      <div class="d-card-title">${esc(p.name)}</div>
-      <div>${elChips(p.vizi,'vizi','bad')}${elChips(p.virtu,'virtu','good')}${elChips((p.comandamenti||[]).map(n=>({id:n,name:'Dec. '+n})),'dec','bad')}</div>
-      ${(p.luoghi||[]).map(elLocusBtn).join('')}
-    </div>`).join('');
+  renderPersPage();
+  renderPostPage();
 
-  document.getElementById('el-temi').innerHTML = (data.temi || []).map(t => `
-    <div class="d-card el-card" id="el-t-${t.id}">
-      <div class="d-card-title">${esc(t.name)}</div>
-      ${(t.luoghi||[]).map(elLocusBtn).join('')}
-    </div>`).join('');
+  document.getElementById('el-temi').innerHTML = (data.temi || []).map(t => elAcc(
+    'el-t-'+t.id, esc(t.name), '',
+    (t.luoghi||[]).map(elLocusBtn).join('')
+  )).join('');
 
-  document.getElementById('el-vizi').innerHTML = (data.vizi || []).map(v => `
-    <div class="d-card el-card" id="el-v-${v.id}">
-      <div class="d-card-title">${esc(v.name)}</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
-      <div>${elChips(v.comandamenti,'dec','bad')}${elChips(v.personaggi,'pers','bad')}</div>
-      ${(v.luoghi||[]).map(elLocusBtn).join('')}
-    </div>`).join('');
+  document.getElementById('el-vizi').innerHTML = (data.vizi || []).map(v => elAcc(
+    'el-v-'+v.id, esc(v.name),
+    `<div style="font-size:.78rem;color:var(--muted)">${esc(v.luogo||'')}</div>`,
+    `<div>${elChips(v.comandamenti,'dec','bad')}${elChips(v.personaggi,'pers','bad')}</div>
+     ${(v.luoghi||[]).map(elLocusBtn).join('')}`
+  )).join('');
 
-  document.getElementById('el-virtu').innerHTML = (data.virtu || []).map(v => `
-    <div class="d-card el-card" id="el-u-${v.id}">
-      <div class="d-card-title">${esc(v.name)}</div>
-      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
-      <div>${elChips(v.personaggi,'pers','good')}</div>
-      ${(v.luoghi||[]).map(elLocusBtn).join('')}
-    </div>`).join('');
+  document.getElementById('el-virtu').innerHTML = (data.virtu || []).map(v => elAcc(
+    'el-u-'+v.id, esc(v.name),
+    `<div style="font-size:.78rem;color:var(--muted)">${esc(v.luogo||'')}</div>`,
+    `<div>${elChips(v.personaggi,'pers','good')}</div>
+     ${(v.luoghi||[]).map(elLocusBtn).join('')}`
+  )).join('');
 
-  document.getElementById('el-dec').innerHTML = (data.comandamenti || []).map(c => `
-    <div class="d-card el-card" id="el-c-${c.roman}">
-      <div class="d-card-title">${c.roman}. ${esc(c.name)}</div>
-      <div class="el-row bad">Violato da</div>
-      <div>${c.violatori?.length ? elChips(c.violatori,'pers','bad') : '—'}</div>
-      ${(c.luoghi_violazione||c.luoghi||[]).map(l => elLocusBtn(l,'bad')).join('')}
-      <div class="el-row good">Osservato / incarnato da</div>
-      <div>${c.osservanti?.length ? elChips(c.osservanti,'pers','good') : '—'}</div>
-      ${(c.luoghi_osservanza||[]).map(l => elLocusBtn(l,'good')).join('')}
-    </div>`).join('');
-
-  document.getElementById('el-post').innerHTML = (data.posteriori || []).map(p => `
-    <div class="d-card el-card">
-      <div class="d-card-title">${esc(p.author)}</div>
-      <div style="font-size:.85rem;margin-bottom:.25rem"><em>${esc(p.work)}</em> · ${esc(p.year || '')}</div>
-      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.4rem">${esc(p.what)}</p>
-      ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem">Fonte / testo →</a>` : ''}
-      ${(p.luoghi||[]).map(elLocusBtn).join('')}
-    </div>`).join('');
+  document.getElementById('el-dec').innerHTML = (data.comandamenti || []).map(c => elAcc(
+    'el-c-'+c.roman, `${c.roman}. ${esc(c.name)}`, '',
+    `<div class="el-row bad">Violato da</div>
+     <div>${c.violatori?.length ? elChips(c.violatori,'pers','bad') : '—'}</div>
+     ${(c.luoghi_violazione||c.luoghi||[]).map(l => elLocusBtn(l,'bad')).join('')}
+     <div class="el-row good">Osservato / incarnato da</div>
+     <div>${c.osservanti?.length ? elChips(c.osservanti,'pers','good') : '—'}</div>
+     ${(c.luoghi_osservanza||[]).map(l => elLocusBtn(l,'good')).join('')}`
+  )).join('');
 }
 
 function jumpEl(kind, id) {
@@ -2515,10 +2577,25 @@ function jumpEl(kind, id) {
     const link = document.querySelector(`#elSub a[href="${pane}"]`);
     if (link && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(link).show();
   }
+  if (kind === 'pers' && elementiCatalog) {
+    const idx = (elementiCatalog.personaggi || []).findIndex(p => p.id === id);
+    if (idx >= 0) {
+      elState.pers.q = '';
+      const q = document.getElementById('el-q-pers');
+      if (q) q.value = '';
+      elState.pers.page = Math.floor(idx / EL_PAGE);
+      renderPersPage();
+    }
+  }
   const prefix = {pers:'el-p-', vizi:'el-v-', virtu:'el-u-', dec:'el-c-'}[kind];
   if (prefix) {
     const el = document.getElementById(prefix + id);
-    if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth', block:'start'}), 80);
+    if (el) {
+      el.classList.add('open');
+      const caret = el.querySelector('.caret');
+      if (caret) caret.textContent = '▾';
+      setTimeout(() => el.scrollIntoView({behavior:'smooth', block:'start'}), 80);
+    }
   }
 }
 
@@ -2664,6 +2741,16 @@ $(()=>{
   $('body').on('click', '.el-chip', function(){
     jumpEl($(this).data('el'), String($(this).data('id')));
   });
+  $('body').on('click', '.el-acc', function(){
+    const card = this.closest('.el-card');
+    card.classList.toggle('open');
+    const caret = this.querySelector('.caret');
+    if (caret) caret.textContent = card.classList.contains('open') ? '▾' : '▸';
+  });
+  $('#el-q-pers').on('input', function(){ elState.pers.q = this.value.trim(); elState.pers.page = 0; renderPersPage(); });
+  $('#el-q-post').on('input', function(){ elState.post.q = this.value.trim(); elState.post.page = 0; renderPostPage(); });
+  $('#el-pg-pers').on('click', 'button', function(){ elState.pers.page += +$(this).data('dir'); renderPersPage(); });
+  $('#el-pg-post').on('click', 'button', function(){ elState.post.page += +$(this).data('dir'); renderPostPage(); });
 
   // ── TAB activation ────────────────────────────────
   $('a[href="#tab-frequenze"]').on('shown.bs.tab',()=>{
