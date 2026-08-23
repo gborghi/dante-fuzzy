@@ -83,7 +83,18 @@
         <strong>Click sul nome</strong> → terzine di quel personaggio.
         <strong>Click sulla linea</strong> → terzine del vizio/virtù in comune.</p>
       </div>
-      <div id="ig-vis" style="height:560px;border:1px solid var(--border);border-radius:6px;background:#12100c"></div>
+      <div id="ig-vis-wrap" style="position:relative">
+        <div id="ig-vis" style="height:560px;border:1px solid var(--border);border-radius:6px;background:#12100c"></div>
+        <div id="ig-vis-ctrl" style="position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px;z-index:5">
+          <button type="button" class="btn btn-gold btn-sm" data-vis="in" title="Zoom +">+</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="out" title="Zoom −">−</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="up" title="Su">↑</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="down" title="Giù">↓</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="left" title="Sinistra">←</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="right" title="Destra">→</button>
+          <button type="button" class="btn btn-outline-parch btn-sm" data-vis="fit" title="Tutto">⌂</button>
+        </div>
+      </div>
       <div id="ig-graph-hits" class="mt-3" style="display:none"></div>`;
 
     if (!root.vis || !root.vis.Network) {
@@ -157,6 +168,38 @@
       }
     });
     const fit = () => { try { net.fit({ animation: true }); } catch (err) {} };
+    const pan = (dx, dy) => {
+      const scale = net.getScale() || 1;
+      const pos = net.getViewPosition();
+      const step = 140 / scale;
+      net.moveTo({
+        position: { x: pos.x + dx * step, y: pos.y + dy * step },
+        scale,
+        animation: { duration: 180, easingFunction: 'easeInOutQuad' }
+      });
+    };
+    const zoom = (factor) => {
+      const scale = Math.min(3, Math.max(0.15, (net.getScale() || 1) * factor));
+      net.moveTo({
+        position: net.getViewPosition(),
+        scale,
+        animation: { duration: 180, easingFunction: 'easeInOutQuad' }
+      });
+    };
+    el.querySelector('#ig-vis-ctrl')?.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-vis]');
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const act = btn.getAttribute('data-vis');
+      if (act === 'in') zoom(1.25);
+      else if (act === 'out') zoom(0.8);
+      else if (act === 'up') pan(0, -1);
+      else if (act === 'down') pan(0, 1);
+      else if (act === 'left') pan(-1, 0);
+      else if (act === 'right') pan(1, 0);
+      else if (act === 'fit') fit();
+    });
     const sub = document.querySelector('#igSub a[href="#ig-graph"]');
     if (sub) sub.addEventListener('shown.bs.tab', () => setTimeout(fit, 80));
     setTimeout(fit, 200);
