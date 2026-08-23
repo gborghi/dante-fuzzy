@@ -999,28 +999,46 @@ class DanteNLP {
     this._build();
   }
 
-  _tok(text) {
+  _surf(text) {
     return text.toLowerCase()
       .replace(/[''`]/g,"'")
       .replace(/[^\w\sàáèéìíòóùú]/g,' ')
       .split(/\s+/)
       .map(w => w.replace(/^'+|'+$/g,''))
-      .filter(w => w.length > 1)
-      .map(w => (typeof stemIt === 'function' ? stemIt(w) : w));
+      .filter(w => w.length > 1);
+  }
+
+  _tok(text) {
+    return this._surf(text).map(w => (typeof stemIt === 'function' ? stemIt(w) : w));
+  }
+
+  labelOf(stem) {
+    const m = this.surfOf?.get(stem);
+    if (!m || !m.size) return stem;
+    let best = stem, n = -1;
+    for (const [s, c] of m) if (c > n) { n = c; best = s; }
+    return best;
   }
 
   _build() {
     this.byCantica = { Inferno:[], Purgatorio:[], Paradiso:[] };
     this.all = [];
     this.corpus = {}; // cantica → canto → tokens[]
+    this.surfOf = new Map(); // stem → Map(surface → count)
 
     for (const [c, canti] of Object.entries(this.td)) {
       this.corpus[c] = {};
       for (const [canto, terz] of Object.entries(canti)) {
         const toks = [];
         for (const [, txt] of terz) {
-          const t = this._tok(txt);
+          const surfs = this._surf(txt);
+          const t = surfs.map(w => (typeof stemIt === 'function' ? stemIt(w) : w));
           toks.push(...t);
+          for (let i = 0; i < t.length; i++) {
+            if (!this.surfOf.has(t[i])) this.surfOf.set(t[i], new Map());
+            const m = this.surfOf.get(t[i]);
+            m.set(surfs[i], (m.get(surfs[i]) || 0) + 1);
+          }
         }
         this.corpus[c][canto] = toks;
         this.all.push(...toks);
@@ -1709,6 +1727,7 @@ function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=
   }));
 
   const maxF = Math.max(...words.map(w=>freq?.get(w)||1));
+  const labels = words.map(w => nlpEngine.labelOf(w));
   const nodeTr = {
     x:pos.map(p=>p.x), y:pos.map(p=>p.y),
     type:'scatter', mode:'markers+text',
@@ -1717,9 +1736,9 @@ function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=
       color:'#d4a843', opacity:.82,
       line:{width:1,color:'#0e0c09'}
     },
-    text:words, textposition:'top center',
+    text:labels, textposition:'top center',
     textfont:{color:'#c8c0b0',size:9},
-    hovertext:words.map(w=>`${w}: ${freq?.get(w)||0}`),
+    hovertext:words.map((w,i)=>`${labels[i]}: ${freq?.get(w)||0}`),
     hoverinfo:'text', showlegend:false
   };
 
@@ -1736,13 +1755,14 @@ function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=
     if (!pt || !pt.data.text) return;
     const word=pt.data.text[pt.pointIndex];
     if (!word) return;
+    const stem = words[pt.pointIndex];
     const nbrs=(adj[pt.pointIndex]||[]).sort((a,b)=>b.w-a.w).slice(0,8);
     document.getElementById('node-info').innerHTML=`
       <strong style="color:var(--gold)">${word}</strong><br>
-      <span style="color:var(--muted)">Freq: ${freq?.get(word)||0}</span>
+      <span style="color:var(--muted)">Freq: ${freq?.get(stem)||0}</span>
       <div style="margin-top:.4rem">${nbrs.map(({nd,w})=>`
         <div style="display:flex;justify-content:space-between">
-          <span>${words[nd]}</span><span style="color:var(--muted)">${w}</span>
+          <span>${nlpEngine.labelOf(words[nd])}</span><span style="color:var(--muted)">${w}</span>
         </div>`).join('')}</div>`;
   });
 
@@ -1751,7 +1771,7 @@ function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=
     .sort((a,b)=>b.s-a.s);
   document.getElementById('centrality-list').innerHTML=cent.slice(0,10).map(({w,s})=>`
     <div style="display:flex;justify-content:space-between;margin-bottom:.2rem">
-      <span style="color:var(--gold)">${w}</span>
+      <span style="color:var(--gold)">${nlpEngine.labelOf(w)}</span>
       <span style="color:var(--muted)">${s}</span>
     </div>`).join('');
 }
