@@ -39,29 +39,73 @@
     const g = data.graph || { nodes: [], edges: [] };
     const pers = (root.elementiCatalog && root.elementiCatalog.personaggi) || [];
     const firstLoc = (id) => (pers.find(p => p.id === id)?.luoghi || [])[0];
-    const W = 720, H = 480;
-    const n = g.nodes.length || 1;
-    const pos = g.nodes.map((_, i) => ({
-      x: W / 2 + 220 * Math.cos(2 * Math.PI * i / n),
-      y: H / 2 + 180 * Math.sin(2 * Math.PI * i / n)
+    el.innerHTML = `<p class="cosmo-intro">Layout fisico vis-network: trascina i nodi. Click = primo locus nella Commedia.</p>
+      <div id="ig-vis" style="height:580px;border:1px solid var(--border);border-radius:6px;background:#12100c"></div>`;
+    if (!root.vis || !root.vis.Network) {
+      el.querySelector('#ig-vis').innerHTML = '<p style="color:var(--muted);padding:2rem">vis-network non caricato.</p>';
+      return;
+    }
+    const nodes = new vis.DataSet(g.nodes.map(nd => {
+      const damned = nd.vizi && nd.vizi.length;
+      return {
+        id: nd.id,
+        label: nd.name,
+        loc: firstLoc(nd.id),
+        color: {
+          background: damned ? '#7a241c' : '#2a4d28',
+          border: damned ? '#e8c15a' : '#8fbc7a',
+          highlight: { background: '#e8c15a', border: '#fff3c4' }
+        },
+        font: { color: '#efe6d4', size: 15, face: 'Cinzel, serif' },
+        shape: 'dot',
+        size: damned ? 18 : 16
+      };
     }));
-    const idx = Object.fromEntries(g.nodes.map((nd, i) => [nd.id, i]));
-    const lines = (g.edges || []).map(e => {
-      const a = pos[idx[e.a]], b = pos[idx[e.b]];
-      if (!a || !b) return '';
-      return `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#4a4336" stroke-width="1"/>`;
-    }).join('');
-    const nodes = g.nodes.map((nd, i) => {
-      const loc = firstLoc(nd.id);
-      return `<g class="ig-node ig-canto" data-id="${nd.id}"
-        ${loc ? `data-cantica="${loc.cantica}" data-canto="${loc.canto}" data-tercet="${loc.tercet}"` : ''}
-        style="cursor:pointer">
-        <circle cx="${pos[i].x}" cy="${pos[i].y}" r="8" fill="${nd.vizi && nd.vizi.length ? '#c0392b' : '#5a8f4a'}"/>
-        <text x="${pos[i].x + 10}" y="${pos[i].y + 4}" fill="#efe6d4" font-size="11">${nd.name}</text>
-      </g>`;
-    }).join('');
-    el.innerHTML = `<p class="cosmo-intro">Click sul nome: apre il primo locus nella Commedia.</p>
-      <svg viewBox="0 0 ${W} ${H}" style="width:100%;background:var(--vellum);border:1px solid var(--border);border-radius:6px">${lines}${nodes}</svg>`;
+    const edges = new vis.DataSet((g.edges || []).map((e, i) => ({
+      id: i, from: e.a, to: e.b,
+      color: { color: 'rgba(232,193,90,.28)', highlight: '#e8c15a' },
+      width: 1.2
+    })));
+    if (el._visNet) { try { el._visNet.destroy(); } catch (e) {} }
+    const net = new vis.Network(el.querySelector('#ig-vis'), { nodes, edges }, {
+      physics: {
+        solver: 'barnesHut',
+        barnesHut: {
+          gravitationalConstant: -6500,
+          springLength: 140,
+          springConstant: 0.04,
+          damping: 0.35,
+          avoidOverlap: 0.7
+        },
+        stabilization: { iterations: 250 }
+      },
+      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true, tooltipDelay: 80 },
+      nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,.45)', size: 8 } },
+      edges: { smooth: { type: 'dynamic' } }
+    });
+    el._visNet = net;
+    net.on('click', (p) => {
+      if (!p.nodes.length) return;
+      const nd = nodes.get(p.nodes[0]);
+      if (nd && nd.loc) jump(nd.loc.cantica, nd.loc.canto, nd.loc.tercet);
+    });
+    const pane = document.querySelector('#mainTabs a[href="#tab-infografiche"]');
+    const sub = document.querySelector('#igSub a[href="#ig-graph"]');
+    const fit = () => { try { net.fit({ animation: true }); } catch (e) {} };
+    if (sub) sub.addEventListener('shown.bs.tab', () => setTimeout(fit, 80));
+    setTimeout(fit, 200);
+  }
+
+  function renderSchede(el, data) {
+    el.innerHTML = `
+      <div class="d-card-title">Firenze</div><div id="ig-box-firenze" class="mb-4"></div>
+      <div class="d-card-title">Guide</div><div id="ig-box-guide" class="mb-4"></div>
+      <div class="d-card-title">Rosa dei vizi e delle virtù</div><div id="ig-box-rosa" class="mb-4"></div>
+      <div class="d-card-title">Terzina</div><div id="ig-box-rima"></div>`;
+    renderFirenze(el.querySelector('#ig-box-firenze'), data);
+    renderGuide(el.querySelector('#ig-box-guide'), data);
+    renderRosa(el.querySelector('#ig-box-rosa'), data);
+    renderRima(el.querySelector('#ig-box-rima'), data);
   }
 
   const FIRENZE_LOC = {
@@ -186,25 +230,58 @@
   }
 
   function heatGrid(term) {
-    const nlp = root.nlpEngine;
+    const gt = root.globalTercet || {};
+    const mode = document.querySelector('input[name="algo"]:checked')?.value || 'exact';
+    const counts = {};
+    CANTICHE.forEach(c => {
+      const max = c === 'Inferno' ? 34 : 33;
+      for (let n = 1; n <= max; n++) counts[c + '_' + n] = 0;
+    });
+    const q = String(term || '').toLowerCase();
+    if (root.SearchEngines && root.SearchEngines.ready && mode !== 'exact') {
+      root.SearchEngines.search(q, { mode }).forEach(h => {
+        const k = h.cantica + '_' + h.canto;
+        if (k in counts) counts[k]++;
+      });
+    } else {
+      const match = (typeof root.tercetMatchesQuery === 'function')
+        ? (txt) => root.tercetMatchesQuery(txt, q)
+        : (txt) => (typeof root.evalQuery === 'function' && root.parseQuery)
+            ? root.evalQuery(String(txt||'').toLowerCase(), root.parseQuery(q), 0)
+            : false;
+      CANTICHE.forEach(c => {
+        const book = gt[c] || {};
+        Object.keys(book).forEach(canto => {
+          const terz = book[canto] || [];
+          terz.forEach(row => {
+            const txt = Array.isArray(row) ? row[1] : '';
+            if (match(txt)) counts[c + '_' + canto] = (counts[c + '_' + canto] || 0) + 1;
+          });
+        });
+      });
+    }
     const grid = [];
     CANTICHE.forEach(c => {
       const max = c === 'Inferno' ? 34 : 33;
-      const hits = nlp ? nlp.concordances(term, c) : [];
-      const byCanto = {};
-      hits.forEach(h => { byCanto[+h.canto] = (byCanto[+h.canto] || 0) + 1; });
-      for (let n = 1; n <= max; n++) grid.push({ cantica: c, canto: n, n: byCanto[n] || 0 });
+      for (let n = 1; n <= max; n++) grid.push({ cantica: c, canto: n, n: counts[c + '_' + n] || 0 });
     });
     return grid;
   }
 
   function paintHeat(host, term) {
-    const grid = heatGrid(term);
+    if (!host) return;
+    if (!term) { host.innerHTML = '<p style="color:var(--muted)">Inserisci una parola.</p>'; return; }
+    let grid;
+    try { grid = heatGrid(term); }
+    catch (err) {
+      host.innerHTML = `<p style="color:#e98a82">Errore ricerca: ${String(err.message || err)}</p>`;
+      return;
+    }
     const max = Math.max(...grid.map(g => g.n), 1);
+    const tot = grid.reduce((s, g) => s + g.n, 0);
     const byC = {};
     CANTICHE.forEach(c => { byC[c] = grid.filter(g => g.cantica === c); });
-    const tot = grid.reduce((s, g) => s + g.n, 0);
-    host.innerHTML = `<div style="color:var(--muted);margin:.3rem 0 .6rem">${tot} terzine con «${term}»</div>` +
+    host.innerHTML = `<div style="color:var(--gold);margin:.3rem 0 .6rem">${tot} terzine · «${term}» (stesso motore della barra UMAP)</div>` +
       CANTICHE.map(c => `
         <div style="margin:.4rem 0">
           <div class="el-ref" style="color:${COL[c]}">${c}</div>
@@ -217,18 +294,22 @@
   }
 
   function renderHeat(el) {
-    el.innerHTML = `<p class="cosmo-intro">Scrivi qualsiasi parola: heatmap per canto (stem). Click su un quadrato = apri quel canto.</p>
+    el.innerHTML = `<p class="cosmo-intro">Stessa ricerca della barra UMAP (stem, AND/OR, motore scelto in Algoritmo). Click sul canto per aprirlo.</p>
       <div class="d-flex gap-2 mb-2">
-        <input class="el-search" id="ig-heat-q" type="search" placeholder="es. luce, giustizia, stelle…" value="luce" style="margin:0">
+        <input class="el-search" id="ig-heat-q" type="search" placeholder="es. luce, giustizia AND stelle…" value="luce" style="margin:0">
         <button type="button" class="btn btn-gold btn-sm" id="ig-heat-go">Mostra</button>
       </div>
-      <div id="ig-heat-grid"></div>`;
+      <div id="ig-heat-grid"><p style="color:var(--muted)">Premi Mostra.</p></div>`;
     const run = () => {
-      const q = (document.getElementById('ig-heat-q').value || '').trim();
-      if (q) paintHeat(document.getElementById('ig-heat-grid'), q);
+      const q = (el.querySelector('#ig-heat-q')?.value || '').trim();
+      paintHeat(el.querySelector('#ig-heat-grid'), q);
     };
-    el.querySelector('#ig-heat-go').addEventListener('click', run);
-    el.querySelector('#ig-heat-q').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('#ig-heat-go')) { e.preventDefault(); run(); }
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target.id === 'ig-heat-q') { e.preventDefault(); run(); }
+    });
     run();
   }
 
@@ -277,15 +358,9 @@
     'ig-time': renderTimeline,
     'ig-contra': renderContrapasso,
     'ig-graph': renderGraph,
-    'ig-firenze': renderFirenze,
+    'ig-schede': renderSchede,
     'ig-voci': renderSpeakers,
-    'ig-rosa': renderRosa,
-    'ig-arb': renderArbitrio,
-    'ig-guide': renderGuide,
-    'ig-rima': renderRima,
-    'ig-heat': renderHeat,
-    'ig-cit': renderCitazioni,
-    'ig-eu': renderEuropa
+    'ig-heat': renderHeat
   };
 
   function bindClicks(rootEl) {
@@ -307,8 +382,10 @@
       bindClicks(host);
     }
     Object.entries(PANES).forEach(([id, fn]) => {
-      const el = document.getElementById(id);
-      if (el) fn(el, data);
+      const pane = document.getElementById(id);
+      if (!pane) return;
+      try { fn(pane, data); }
+      catch (err) { console.error('infografica', id, err); pane.innerHTML = `<p style="color:#e98a82">${id}: ${String(err.message || err)}</p>`; }
     });
   };
 })(typeof window !== 'undefined' ? window : globalThis);

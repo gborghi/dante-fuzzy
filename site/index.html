@@ -839,29 +839,17 @@
     <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#ig-time">Timeline</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-contra">Contrapasso</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-graph">Grafo</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-firenze">Firenze</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-schede">Figure</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-voci">Voci</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-rosa">Rosa</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-arb">Arbitrio</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-guide">Guide</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-rima">Terzina</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-heat">Lessico</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-cit">Citazioni</a></li>
-    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#ig-eu">Europa</a></li>
   </ul>
   <div class="tab-content">
     <div class="tab-pane fade show active" id="ig-time"></div>
     <div class="tab-pane fade" id="ig-contra"></div>
     <div class="tab-pane fade" id="ig-graph"></div>
-    <div class="tab-pane fade" id="ig-firenze"></div>
+    <div class="tab-pane fade" id="ig-schede"></div>
     <div class="tab-pane fade" id="ig-voci"></div>
-    <div class="tab-pane fade" id="ig-rosa"></div>
-    <div class="tab-pane fade" id="ig-arb"></div>
-    <div class="tab-pane fade" id="ig-guide"></div>
-    <div class="tab-pane fade" id="ig-rima"></div>
     <div class="tab-pane fade" id="ig-heat"></div>
-    <div class="tab-pane fade" id="ig-cit"></div>
-    <div class="tab-pane fade" id="ig-eu"></div>
   </div>
 </div>
 
@@ -911,6 +899,7 @@
 <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.min.js"></script>
 <script src="js/stem-it.js"></script>
 <script src="js/search-engines.js"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <script src="js/infografiche.js"></script>
 <script>
 'use strict';
@@ -1980,20 +1969,20 @@ function evalQuery(text,cond,thr=0){
   return !!stack.pop();
 }
 
-function queryTermsFromBar() {
-  const q = (document.getElementById('searchBar')?.value || '').trim().toLowerCase();
-  if (!q && conditions?.length) return conditions.filter(c => c.term).map(c => c.term);
+function queryTermsFromBar(qOverride) {
+  const q = (qOverride != null ? qOverride : (document.getElementById('searchBar')?.value || '')).trim().toLowerCase();
+  if (!q && qOverride == null && conditions?.length) return conditions.filter(c => c.term).map(c => c.term);
   return (q.match(/[^\s()]+/g) || []).filter(t => !['and','or','not'].includes(t));
 }
 
-function tercetMatchesQuery(txt) {
-  const q = (document.getElementById('searchBar')?.value || '').trim().toLowerCase();
-  const cond = (conditions && conditions.length) ? conditions : (q ? parseQuery(q) : null);
+function tercetMatchesQuery(txt, qOverride) {
+  const q = (qOverride != null ? qOverride : (document.getElementById('searchBar')?.value || '')).trim().toLowerCase();
+  const cond = q ? parseQuery(q) : ((conditions && conditions.length) ? conditions : null);
   if (cond && cond.length) {
     if (evalQuery(String(txt||'').toLowerCase(), cond, similarityThreshold)) return true;
   }
   if (!nlpEngine) return false;
-  const terms = queryTermsFromBar();
+  const terms = queryTermsFromBar(qOverride != null ? qOverride : undefined);
   if (!terms.length) return false;
   const toks = nlpEngine._tok(txt);
   return terms.some(t => {
@@ -2781,6 +2770,7 @@ $(()=>{
     $('#loading-msg').text('Costruzione motore NLP...');
     setTimeout(()=>{
       nlpEngine=new DanteNLP(globalTercet);
+      window.nlpEngine = nlpEngine;
       if (window.SearchEngines) SearchEngines.init(globalTercet, window._danteThesaurus || {});
       const st=nlpEngine.stats();
       $('#s-canti').text(st.canti);
@@ -2812,6 +2802,7 @@ $(()=>{
   ]).then(([canti, terzine, topics, elementi, info, thes]) => {
     globalData = canti;
     globalTercet = terzine;
+    window.globalTercet = terzine;
     renderTopics(topics);
     renderElementi(elementi);
     if (typeof renderInfografiche === 'function') renderInfografiche(info);
