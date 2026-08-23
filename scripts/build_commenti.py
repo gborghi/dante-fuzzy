@@ -39,6 +39,30 @@ AUTHORS = {
         "year": 1865,
         "lang": "it",
     },
+    "torraca": {
+        "name": "Francesco Torraca",
+        "work": "La Divina Commedia nuovamente commentata",
+        "year": 1905,
+        "lang": "it",
+    },
+    "campi": {
+        "name": "Giuseppe Campi",
+        "work": "La Divina Commedia ridotta a miglior lezione",
+        "year": 1888,
+        "lang": "it",
+    },
+    "bianchi": {
+        "name": "Brunone Bianchi",
+        "work": "La Commedia di Dante Alighieri",
+        "year": 1857,
+        "lang": "it",
+    },
+    "fraticelli": {
+        "name": "Pietro Fraticelli",
+        "work": "La Divina Commedia col comento",
+        "year": 1881,
+        "lang": "it",
+    },
 }
 
 IT_ORD = {
@@ -356,6 +380,62 @@ def parse_longfellow():
 
 
 # ── Tommaseo Inferno OCR (canto-level + rough verse) ──
+def parse_verse_txt(path: Path, author: str, year: int, default_cantica: str | None):
+    store = defaultdict(lambda: {"canto": [], "tz": {}})
+    if not path.exists():
+        return store
+    text = path.read_text(errors="replace")
+    text = text.replace("\f", "\n")
+    # split keeping headers
+    parts = re.split(r"(?m)(?=^[ \t]*CANTO\s+[A-ZÀIVX0-9]+\.?\s*$)", text)
+    cantica = default_cantica or "Inferno"
+    for part in parts:
+        head = part[:400].upper()
+        if re.search(r"\bPURGATORIO\b", head) or re.search(r"\bPURGATORIO\b", part[:1200]):
+            cantica = "Purgatorio"
+        elif re.search(r"\bPARADISO\b", head) or (
+            default_cantica is None and re.search(r"\bPARADISO\b", part[:1200])
+        ):
+            if default_cantica is None:
+                cantica = "Paradiso"
+        hm = re.match(r"\s*CANTO\s+([A-ZÀ]+|[IVX]+|\d{1,2})\.?", part, re.I)
+        if not hm:
+            continue
+        token = hm.group(1).strip().upper()
+        if token in IT_ORD:
+            canto = IT_ORD[token]
+        elif token in ROMAN:
+            canto = ROMAN[token]
+        elif token.isdigit():
+            canto = int(token)
+        else:
+            continue
+        if canto < 1 or canto > 34:
+            continue
+        body = part[hm.end():]
+        arg = re.search(
+            r"ARGOMENTO\s*(.{80,900}?)(?=\n\s*\d{1,3}\s*[.:]|\nNel mezzo|\nPer correr|\nLa gloria|\Z)",
+            body, re.S | re.I,
+        )
+        if arg:
+            add_note(store, cantica, canto, [], author, arg.group(1),
+                     f"{author.title()} {year}, {cantica} {canto} (argomento)", True)
+        elif not re.match(r"\s*\d", body[:200]):
+            para = re.split(r"\n\s*\d{1,3}\s*[.:\-]", body, maxsplit=1)[0]
+            add_note(store, cantica, canto, [], author, para[:1100],
+                     f"{author.title()} {year}, {cantica} {canto}", True)
+        for nm in re.finditer(
+            r"(?:(?<=\n)|(?<=^))\s*(?P<spec>\d{1,3}(?:\s*[-–—]\s*\d{1,3})?)\s*[.:]\s+(?P<body>.{40,900}?)(?=\n\s*\d{1,3}(?:\s*[-–—]\s*\d{1,3})?\s*[.:]|\Z)",
+            body, re.S,
+        ):
+            add_note(
+                store, cantica, canto, parse_line_spec(nm.group("spec")),
+                author, nm.group("body"),
+                f"{author.title()} {year}, {cantica} {canto}, v. {nm.group('spec').replace(' ','')}",
+            )
+    return store
+
+
 def parse_tommaseo():
     store = defaultdict(lambda: {"canto": [], "tz": {}})
     path = PD / "it/tommaseo_1865_inferno.txt"
@@ -399,9 +479,9 @@ def merge(*stores):
                 out[k]["tz"].setdefault(tz, []).extend(notes)
     # dedupe similar starts per author/tz
     for k, v in out.items():
-        v["canto"] = _dedupe(v["canto"])[:6]
+        v["canto"] = _dedupe(v["canto"])[:8]
         for tz in list(v["tz"]):
-            v["tz"][tz] = _dedupe(v["tz"][tz])[:8]
+            v["tz"][tz] = _dedupe(v["tz"][tz])[:12]
             if not v["tz"][tz]:
                 del v["tz"][tz]
     return out
@@ -432,7 +512,17 @@ def main():
     print("parsing tommaseo…")
     m = parse_tommaseo()
     print("  keys", len(m))
-    alls = merge(t, s, l, m)
+    extras = [
+        parse_verse_txt(PD / "it/torraca_1905.txt", "torraca", 1905, None),
+        parse_verse_txt(PD / "it/campi_1888_inferno.txt", "campi", 1888, "Inferno"),
+        parse_verse_txt(PD / "it/campi_1891_purgatorio.txt", "campi", 1891, "Purgatorio"),
+        parse_verse_txt(PD / "it/campi_1893_paradiso.txt", "campi", 1893, "Paradiso"),
+        parse_verse_txt(PD / "it/bianchi_1857.txt", "bianchi", 1857, None),
+        parse_verse_txt(PD / "it/fraticelli_1881.txt", "fraticelli", 1881, None),
+    ]
+    for i, e in enumerate(extras):
+        print("  extra", i, "keys", len(e))
+    alls = merge(t, s, l, m, *extras)
     by_c = {"Inferno": {}, "Purgatorio": {}, "Paradiso": {}}
     for k, v in alls.items():
         cant, canto = k.split(":")
