@@ -175,11 +175,9 @@
 
     /* ── KWIC TABLE ── */
     #kwic-table { border-collapse: collapse; width: 100%; }
-    #kwic-table td { padding: .28rem .45rem; font-size: .95rem; border-bottom: 1px solid var(--border); }
-    .kwic-ref { white-space: nowrap; }
-    .kwic-left { text-align: right; color: var(--muted); font-family: 'IM Fell English', serif; }
-    .kwic-match { text-align: center; font-weight: 600; color: var(--gold); padding: 0 .6rem; background: rgba(212,168,67,.08); }
-    .kwic-right { color: var(--muted); font-family: 'IM Fell English', serif; }
+    #kwic-table td { padding: .55rem .5rem; font-size: 1.05rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .kwic-ref { white-space: nowrap; width: 1%; }
+    .kwic-verse { font-family: 'IM Fell English', serif; white-space: pre-line; line-height: 1.65; color: var(--text); }
 
     /* ── WORD CLOUD ── */
     #wordcloud-container {
@@ -575,13 +573,9 @@
   <!-- KWIC -->
   <div class="d-card mt-3" id="kwic-section" style="display:none">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <div class="d-card-title mb-0">Concordanze KWIC</div>
-      <div class="d-flex align-items-center gap-2">
-        <input type="number" class="form-control form-control-sm" id="kwic-ctx" value="5" min="1" max="12" style="width:60px">
-        <span style="font-size:.75rem;color:var(--muted)">parole ctx.</span>
-      </div>
+      <div class="d-card-title mb-0">Terzine</div>
     </div>
-    <div class="click-hint">💡 Doppio click su una riga per aprire il canto completo</div>
+    <div class="click-hint">💡 Doppio click su una terzina per aprire il canto completo</div>
     <div class="scroll-area">
       <table id="kwic-table"><tbody></tbody></table>
     </div>
@@ -1150,8 +1144,9 @@ class DanteNLP {
     return e.sort((a,b) => b[1]-a[1]).slice(0,n).map(([w,s]) => [w, localFreq.get(w)||0, s]);
   }
 
-  concordances(term, cantica='all', ctx=5) {
+  concordances(term, cantica='all') {
     const res = [];
+    const seen = new Set();
     const wc = term.includes('*');
     const rx = wc ? new RegExp('^'+term.replace(/\*/g,'.*')+'$') : null;
     const stem = (!wc && typeof stemIt === 'function') ? stemIt(term) : term;
@@ -1162,16 +1157,11 @@ class DanteNLP {
       for (const [canto, terz] of Object.entries(canti)) {
         for (const [terzina, txt] of terz) {
           const toks = this._tok(txt);
-          toks.forEach((tok,i) => {
-            if (!match(tok)) return;
-            res.push({
-              cantica:c, canto:+canto, terzina:+terzina,
-              left:  toks.slice(Math.max(0,i-ctx),i).join(' '),
-              match: tok,
-              right: toks.slice(i+1,i+1+ctx).join(' '),
-              full:  txt
-            });
-          });
+          if (!toks.some(match)) continue;
+          const key = c+'|'+canto+'|'+terzina;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          res.push({ cantica:c, canto:+canto, terzina:+terzina, full: txt });
         }
       }
     }
@@ -1573,18 +1563,35 @@ function renderHeatmap(term, cantica='all') {
 // ═══════════════════════════════════════════════════════════
 //  KWIC TABLE
 // ═══════════════════════════════════════════════════════════
-function renderKWIC(term, cantica='all', ctx=5) {
+function highlightConcordance(text, term) {
+  const raw = String(text || '').replace(/<\/?span[^>]*>/gi, '');
+  const q = (term || '').trim().toLowerCase();
+  if (!q) return esc(raw);
+  const wc = q.includes('*');
+  const stem = (!wc && typeof stemIt === 'function') ? stemIt(q) : q;
+  const parts = raw.split(/(\b[\wÀ-ÿ']+\b)/);
+  return parts.map(part => {
+    const bare = part.toLowerCase().replace(/^'+|'+$/g,'');
+    if (!bare) return esc(part);
+    const hit = wc
+      ? new RegExp('^'+q.replace(/\*/g,'.*')+'$').test(bare)
+      : (bare === q || (typeof stemIt === 'function' && stemIt(bare) === stem));
+    return hit ? `<mark>${esc(part)}</mark>` : esc(part);
+  }).join('');
+}
+
+function renderKWIC(term, cantica='all') {
   if (!nlpEngine) return;
-  const res = nlpEngine.concordances(term, cantica, ctx);
+  const res = nlpEngine.concordances(term, cantica);
   const tb = document.querySelector('#kwic-table tbody');
   tb.innerHTML='';
 
   if (!res.length) {
-    tb.innerHTML='<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:1rem">Nessuna occorrenza trovata.</td></tr>';
+    tb.innerHTML='<tr><td colspan="2" style="color:var(--muted);text-align:center;padding:1rem">Nessuna occorrenza trovata.</td></tr>';
     return;
   }
 
-  res.forEach(({cantica:c,canto,terzina,left,match,right}) => {
+  res.forEach(({cantica:c,canto,terzina,full}) => {
     const col=C_COLOR[c];
     const tr=document.createElement('tr');
     tr.setAttribute('data-cantica', c);
@@ -1593,12 +1600,10 @@ function renderKWIC(term, cantica='all', ctx=5) {
     tr.setAttribute('title', 'Doppio click per aprire il canto');
     tr.innerHTML=`
       <td class="kwic-ref">
-        <span style="background:${col};color:#fff;border-radius:2px;padding:.05rem .35rem;font-size:.68rem">${c.slice(0,3)}</span>
-        <span style="color:var(--muted);font-size:.72rem;margin-left:.25rem">${canto}.${terzina}</span>
+        <span style="background:${col};color:#fff;border-radius:2px;padding:.05rem .35rem;font-size:.78rem">${c.slice(0,3)}</span>
+        <span style="color:var(--muted);font-size:.82rem;margin-left:.25rem">${canto}.${terzina}</span>
       </td>
-      <td class="kwic-left">${left}</td>
-      <td class="kwic-match">${match}</td>
-      <td class="kwic-right">${right}</td>`;
+      <td class="kwic-verse">${highlightConcordance(full, term)}</td>`;
     tb.appendChild(tr);
   });
   document.getElementById('kwic-section').style.display='block';
@@ -2806,11 +2811,7 @@ $(()=>{
     if(!term||!nlpEngine)return;
     const cantica=$('#conc-cantica').val();
     renderHeatmap(term,cantica);
-    renderKWIC(term,cantica,+$('#kwic-ctx').val()||5);
-  });
-  $('#kwic-ctx').on('change',()=>{
-    const term=$('#conc-input').val().trim().toLowerCase();
-    if(term&&nlpEngine)renderKWIC(term,$('#conc-cantica').val(),+$('#kwic-ctx').val()||5);
+    renderKWIC(term,cantica);
   });
 
   // ── Network ───────────────────────────────────────
