@@ -268,6 +268,7 @@
       max-width: min(58vw, 34rem); display: block;
     }
     .canto-sintesi strong { color: var(--gold); font-weight: 600; }
+    .topic-synth strong { color: var(--gold); font-weight: 600; }
     .modal-header .d-flex { flex-wrap: wrap; align-items: flex-start !important; }
     .terzina-card.terzina-focus {
       outline: none;
@@ -799,7 +800,7 @@
      TAB 6 — TOPIC
 ═══════════════════════════════════════════════ -->
 <div class="tab-pane fade" id="tab-topic">
-  <p class="cosmo-intro">Cluster lessicali già calcolati sul foglio (colonna Topic). Clicca una scheda per le terzine più rappresentative.</p>
+  <p class="cosmo-intro">Dieci temi ricalcolati con clustering guidato (TF-IDF + similarità ai semi letterari). Ordinati per numero. Clicca per le terzine più vicine al tema.</p>
   <div id="topic-grid" class="row g-2"></div>
   <div class="d-card mt-3" id="topic-detail" style="display:none">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -2634,13 +2635,14 @@ function renderTopics(data) {
   topicCatalog = data;
   const grid = document.getElementById('topic-grid');
   if (!grid) return;
-  grid.innerHTML = (data.topics || []).map(t => {
-    const parts = Object.entries(t.cantiche || {}).map(([k,v]) => `${k}: ${v}`).join(' · ');
+  const list = (data.topics || []).slice().sort((a, b) => (a.num ?? parseInt(String(a.id).replace(/\D/g,''),10)) - (b.num ?? 0));
+  grid.innerHTML = list.map(t => {
+    const parts = ['Inferno','Purgatorio','Paradiso'].map(k => `${k[0]}${(t.cantiche||{})[k]||0}`).join(' · ');
+    const title = t.title || t.label || t.id;
     return `<div class="col-md-6 col-lg-4">
-      <button type="button" class="d-card w-100 text-start topic-card" data-topic="${t.id}"
-              style="cursor:pointer">
-        <div class="d-card-title">${t.id.replace('_',' ')}</div>
-        <div style="font-family:'IM Fell English',serif;font-size:.95rem;margin-bottom:.35rem">${esc(t.label)}</div>
+      <button type="button" class="d-card w-100 text-start topic-card" data-topic="${t.id}" style="cursor:pointer">
+        <div class="d-card-title">${esc(String(t.num ?? t.id).replace('topic_','Topic '))} — ${esc(title)}</div>
+        <div class="topic-synth" style="font-size:.82rem;line-height:1.4;margin-bottom:.4rem">${t.synth || esc(t.label || '')}</div>
         <div style="font-size:.75rem;color:var(--muted)">${t.n} terzine · ${esc(parts)}</div>
       </button>
     </div>`;
@@ -2650,9 +2652,12 @@ function renderTopics(data) {
 function showTopic(id) {
   const t = (topicCatalog?.topics || []).find(x => x.id === id);
   if (!t) return;
-  document.getElementById('topic-detail-title').textContent = `${t.id.replace('_',' ')} — ${t.label}`;
+  const title = t.title || t.label || t.id;
+  document.getElementById('topic-detail-title').textContent = `Topic ${t.num ?? ''} — ${title}`.replace('  ',' ');
   const parts = Object.entries(t.cantiche || {}).map(([k,v]) => `${k} ${v}`).join(' · ');
-  document.getElementById('topic-detail-meta').textContent = `${t.n} terzine · ${parts}`;
+  const words = (t.words || []).slice(0, 8).join(' · ');
+  document.getElementById('topic-detail-meta').innerHTML =
+    `${t.synth || ''}<div style="margin-top:.5rem;color:var(--muted)">${t.n} terzine · ${esc(parts)}${words ? ' · ' + esc(words) : ''}</div>`;
   document.getElementById('topic-detail-samples').innerHTML = (t.samples || []).map(s => `
     <div class="sent-card" data-cantica="${s.cantica}" data-canto="${s.canto}" data-number="${s.tercet}">
       <div class="t-meta">${s.cantica} · ${s.canto} · ${s.tercet}</div>
