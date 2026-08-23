@@ -714,6 +714,8 @@
         </div>
         <div id="network-div" style="width:100%;height:510px"></div>
         <div class="click-hint mt-2" id="net-caption"></div>
+        <div class="click-hint">💡 Clicca un nodo per le terzine; poi clicca una terzina per aprire il canto.</div>
+        <div id="net-terzine" class="mt-3" style="display:none"></div>
       </div>
     </div>
     <div class="col-lg-3">
@@ -1836,6 +1838,20 @@ function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=
         <div style="display:flex;justify-content:space-between">
           <span>${nlpEngine.labelOf(words[nd])}</span><span style="color:var(--muted)">${w}</span>
         </div>`).join('')}</div>`;
+    const cantica = document.getElementById('net-cantica')?.value || 'all';
+    const hits = nlpEngine.concordances(stem, cantica);
+    const box = document.getElementById('net-terzine');
+    if (box) {
+      box.style.display = 'block';
+      box.innerHTML = `<div class="d-card-title">Terzine con «${esc(word)}»</div>
+        <div style="color:var(--muted);margin-bottom:.5rem">${hits.length} terzine${cantica!=='all'?' · '+cantica:''}</div>
+        <div class="scroll-area">${hits.map(h => `
+          <div class="sent-card" data-cantica="${h.cantica}" data-canto="${h.canto}" data-number="${h.terzina}">
+            <div class="t-meta">${h.cantica} · ${h.canto} · ${h.terzina}</div>
+            <div class="t-text">${highlightConcordance(h.full, word)}</div>
+          </div>`).join('') || '<p style="color:var(--muted)">Nessuna terzina.</p>'}</div>`;
+      box.scrollIntoView({behavior:'smooth', block:'nearest'});
+    }
   });
 
   // Centrality
@@ -2843,6 +2859,13 @@ $(()=>{
   // ── Double-click anywhere with a tercet citation → open canto modal ──
   // Works on: .terzina-card (UMAP dropdown), #kwic-table rows (Concordanze),
   // .sent-card (Sentiment). Any element with data-cantica + data-canto works.
+  $('body').on('click', '#net-terzine .sent-card', function(){
+    const cantica = $(this).attr('data-cantica');
+    const canto   = +$(this).attr('data-canto');
+    const tz      = $(this).attr('data-number');
+    if (!cantica || !canto) return;
+    openCantoModal(cantica, canto, tz != null ? +tz : null);
+  });
   $('body').on('dblclick', '.terzina-card, #kwic-table tbody tr[data-cantica], .sent-card[data-cantica]', function(e){
     e.preventDefault();
     const cantica = $(this).attr('data-cantica');
