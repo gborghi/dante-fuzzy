@@ -347,6 +347,28 @@
       border-radius: 4px;
     }
     #region-wordcloud .wc-word { cursor: pointer; }
+    .el-sub { display: flex; flex-wrap: wrap; gap: .25rem; margin: 0 0 1rem; }
+    .el-sub .nav-link {
+      font-size: .78rem; color: var(--muted); border: 1px solid var(--border);
+      border-radius: 20px; padding: .25rem .7rem; background: transparent;
+    }
+    .el-sub .nav-link.active { color: var(--gold); border-color: var(--gold-dim); }
+    .el-chip {
+      display: inline-block; font-size: .7rem; padding: .1rem .45rem;
+      border-radius: 10px; border: 1px solid var(--border); color: var(--muted);
+      margin: .1rem .15rem 0 0; cursor: pointer;
+    }
+    .el-chip:hover { color: var(--gold); border-color: var(--gold); }
+    .el-locus {
+      display: block; text-align: left; width: 100%;
+      background: var(--parch); border: 1px solid var(--border); border-left: 3px solid var(--gold-dim);
+      border-radius: 0 4px 4px 0; padding: .45rem .7rem; margin: .35rem 0;
+      color: var(--text); cursor: pointer; font-size: .82rem;
+    }
+    .el-locus:hover { border-left-color: var(--gold); }
+    .el-locus .el-ref { font-size: .7rem; color: var(--gold); margin-bottom: .2rem; }
+    .el-locus .el-sn { font-family: 'IM Fell English', serif; color: var(--muted); }
+    .el-card { margin-bottom: .75rem; }
   </style>
 </head>
 <body>
@@ -379,6 +401,7 @@
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-rete">🕸 Rete Lessicale</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-sentiment">🎭 Sentiment</a></li>
     <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-topic">🗂 Topic</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-elementi">📜 Elementi</a></li>
   </ul>
 </div>
 
@@ -752,6 +775,28 @@
     </div>
     <div id="topic-detail-meta" style="color:var(--muted);font-size:.8rem;margin:.4rem 0 1rem"></div>
     <div id="topic-detail-samples"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB — ELEMENTI
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-elementi">
+  <ul class="nav el-sub" id="elSub">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#el-pers">Personaggi</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-temi">Temi filosofici</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-vizi">Vizi</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-virtu">Virtù</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-dec">10 comandamenti</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#el-post">Riferimenti posteriori</a></li>
+  </ul>
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="el-pers"></div>
+    <div class="tab-pane fade" id="el-temi"></div>
+    <div class="tab-pane fade" id="el-vizi"></div>
+    <div class="tab-pane fade" id="el-virtu"></div>
+    <div class="tab-pane fade" id="el-dec"></div>
+    <div class="tab-pane fade" id="el-post"></div>
   </div>
 </div>
 
@@ -2313,8 +2358,9 @@ function renderRegionWordCloud(cantica, cantos) {
 // ═══════════════════════════════════════════════════════════
 //  URL + TOPICS
 // ═══════════════════════════════════════════════════════════
-const TAB_IDS = ['umap','cosmologia','concordanze','frequenze','rete','sentiment','topic'];
+const TAB_IDS = ['umap','cosmologia','concordanze','frequenze','rete','sentiment','topic','elementi'];
 let topicCatalog = null;
+let elementiCatalog = null;
 
 function currentTabId() {
   const a = document.querySelector('#mainTabs .nav-link.active');
@@ -2387,6 +2433,84 @@ function showTopic(id) {
   document.getElementById('topic-detail').style.display = 'block';
 }
 
+function elLocusBtn(loc) {
+  return `<button type="button" class="el-locus" data-cantica="${esc(loc.cantica)}" data-canto="${loc.canto}" data-tercet="${loc.tercet}">
+    <div class="el-ref">${esc(loc.cantica)} ${loc.canto} · terzina ${loc.tercet}</div>
+    <div class="el-sn">${esc(loc.snippet || '')}</div>
+  </button>`;
+}
+
+function elChips(items, kind) {
+  return (items || []).map(it => {
+    if (typeof it === 'string') return `<span class="el-chip" data-el="${kind}" data-id="${esc(it)}">${esc(it)}</span>`;
+    return `<span class="el-chip" data-el="${kind}" data-id="${esc(it.id)}">${esc(it.name || it.id)}</span>`;
+  }).join('');
+}
+
+function renderElementi(data) {
+  elementiCatalog = data;
+  const pers = document.getElementById('el-pers');
+  pers.innerHTML = (data.personaggi || []).map(p => `
+    <div class="d-card el-card" id="el-p-${p.id}">
+      <div class="d-card-title">${esc(p.name)}</div>
+      <div>${elChips(p.vizi,'vizi')}${elChips(p.virtu,'virtu')}${elChips((p.comandamenti||[]).map(n=>({id:n,name:'Dec. '+n})),'dec')}</div>
+      ${(p.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+
+  document.getElementById('el-temi').innerHTML = (data.temi || []).map(t => `
+    <div class="d-card el-card" id="el-t-${t.id}">
+      <div class="d-card-title">${esc(t.name)}</div>
+      ${(t.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+
+  document.getElementById('el-vizi').innerHTML = (data.vizi || []).map(v => `
+    <div class="d-card el-card" id="el-v-${v.id}">
+      <div class="d-card-title">${esc(v.name)}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
+      <div>${elChips(v.comandamenti,'dec')}${elChips(v.personaggi,'pers')}</div>
+      ${(v.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+
+  document.getElementById('el-virtu').innerHTML = (data.virtu || []).map(v => `
+    <div class="d-card el-card" id="el-u-${v.id}">
+      <div class="d-card-title">${esc(v.name)}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:.4rem">${esc(v.luogo || '')}</div>
+      <div>${elChips(v.personaggi,'pers')}</div>
+      ${(v.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+
+  document.getElementById('el-dec').innerHTML = (data.comandamenti || []).map(c => `
+    <div class="d-card el-card" id="el-c-${c.roman}">
+      <div class="d-card-title">${c.roman}. ${esc(c.name)}</div>
+      <div style="font-size:.78rem;color:var(--muted);margin:.2rem 0">Vizi: ${elChips(c.vizi,'vizi')} · Virtù: ${elChips(c.virtu,'virtu')}</div>
+      <div style="font-size:.78rem;margin-bottom:.4rem">Violatori: ${c.violatori?.length ? elChips(c.violatori,'pers') : '—'}</div>
+      ${(c.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+
+  document.getElementById('el-post').innerHTML = (data.posteriori || []).map(p => `
+    <div class="d-card el-card">
+      <div class="d-card-title">${esc(p.author)}</div>
+      <div style="font-size:.85rem;margin-bottom:.25rem"><em>${esc(p.work)}</em> · ${esc(p.year || '')}</div>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:.4rem">${esc(p.what)}</p>
+      ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--gold);font-size:.78rem">Fonte / testo →</a>` : ''}
+      ${(p.luoghi||[]).map(elLocusBtn).join('')}
+    </div>`).join('');
+}
+
+function jumpEl(kind, id) {
+  const map = {pers:'#el-pers', temi:'#el-temi', vizi:'#el-vizi', virtu:'#el-virtu', dec:'#el-dec'};
+  const pane = map[kind];
+  if (pane) {
+    const link = document.querySelector(`#elSub a[href="${pane}"]`);
+    if (link && window.bootstrap?.Tab) bootstrap.Tab.getOrCreateInstance(link).show();
+  }
+  const prefix = {pers:'el-p-', vizi:'el-v-', virtu:'el-u-', dec:'el-c-'}[kind];
+  if (prefix) {
+    const el = document.getElementById(prefix + id);
+    if (el) setTimeout(() => el.scrollIntoView({behavior:'smooth', block:'start'}), 80);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════════
@@ -2422,10 +2546,12 @@ $(()=>{
     loadJson('data/canti.json'),
     loadJson('data/terzine.json'),
     loadJson('data/topics.json').catch(() => ({topics:[]})),
-  ]).then(([canti, terzine, topics]) => {
+    loadJson('data/elementi.json').catch(() => ({})),
+  ]).then(([canti, terzine, topics, elementi]) => {
     globalData = canti;
     globalTercet = terzine;
     renderTopics(topics);
+    renderElementi(elementi);
     checkReady();
     checkReady();
   }).catch(err => {
@@ -2521,6 +2647,12 @@ $(()=>{
   $('a[data-bs-toggle="tab"]').on('shown.bs.tab', function(){ syncUrl(); });
   $('body').on('click', '.topic-card', function(){ showTopic($(this).data('topic')); });
   $('#topic-close').on('click', () => { document.getElementById('topic-detail').style.display='none'; });
+  $('body').on('click', '.el-locus', function(){
+    openCantoModal($(this).data('cantica'), +$(this).data('canto'), +$(this).data('tercet'));
+  });
+  $('body').on('click', '.el-chip', function(){
+    jumpEl($(this).data('el'), String($(this).data('id')));
+  });
 
   // ── TAB activation ────────────────────────────────
   $('a[href="#tab-frequenze"]').on('shown.bs.tab',()=>{
