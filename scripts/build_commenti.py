@@ -489,13 +489,18 @@ def merge(*stores):
 
 def _dedupe(notes):
     seen = set()
-    out = []
+    by_a = {}
     for n in notes:
         sig = (n["a"], n["t"][:80])
         if sig in seen:
             continue
         seen.add(sig)
-        out.append(n)
+        by_a.setdefault(n["a"], []).append(n)
+    out = []
+    # keep up to 2 excerpts per author so later sources remain visible
+    authors = list(by_a)
+    for a in authors:
+        out.extend(by_a[a][:2])
     return out
 
 
