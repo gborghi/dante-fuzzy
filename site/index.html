@@ -1,0 +1,2522 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Divina Commedia — Analisi NLP</title>
+  <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Cinzel:wght@400;600&family=Source+Sans+3:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --gold:      #d4a843;
+      --gold-dim:  #8a6a22;
+      --ink:       #0e0c09;
+      --parch:     #161410;
+      --vellum:    #1e1b16;
+      --border:    #2e2a22;
+      --text:      #c8c0b0;
+      --muted:     #706858;
+      --inferno:   #c0392b;
+      --purg:      #c87c2a;
+      --para:      #2471a3;
+      --shine:     rgba(212,168,67,.07);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--ink);
+      color: var(--text);
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: var(--parch); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── LOADING ── */
+    #loading-overlay {
+      position: fixed; inset: 0; background: var(--ink);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; z-index: 9999;
+      transition: opacity .6s;
+    }
+    .loading-title {
+      font-family: 'Cinzel', serif; font-size: 2.4rem;
+      color: var(--gold); letter-spacing: .12em;
+      text-shadow: 0 0 40px rgba(212,168,67,.4);
+    }
+    .loading-verse {
+      font-family: 'IM Fell English', serif; font-style: italic;
+      font-size: 1rem; color: var(--muted); margin: .6rem 0 2rem;
+    }
+    .dot-row span {
+      display: inline-block; width: 7px; height: 7px;
+      background: var(--gold); border-radius: 50%; margin: 0 3px;
+      animation: dot-pulse 1.2s ease-in-out infinite;
+    }
+    .dot-row span:nth-child(2) { animation-delay: .2s; }
+    .dot-row span:nth-child(3) { animation-delay: .4s; }
+    @keyframes dot-pulse {
+      0%, 80%, 100% { opacity: .2; transform: scale(.8); }
+      40% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* ── NAVBAR ── */
+    .top-bar {
+      background: var(--parch);
+      border-bottom: 1px solid var(--border);
+      padding: .55rem 1.25rem;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .top-bar .brand {
+      font-family: 'Cinzel', serif; font-size: 1.1rem;
+      color: var(--gold); letter-spacing: .08em;
+    }
+    .cantica-pill {
+      display: inline-flex; align-items: center; gap: .35rem;
+      font-size: .72rem; padding: .2rem .55rem;
+      border-radius: 30px; font-weight: 500;
+    }
+    .pill-inf { background: rgba(192,57,43,.25); color: #e98a82; border: 1px solid rgba(192,57,43,.4); }
+    .pill-pur { background: rgba(200,124,42,.25); color: #ecaf6f; border: 1px solid rgba(200,124,42,.4); }
+    .pill-par { background: rgba(36,113,163,.25); color: #7db6da; border: 1px solid rgba(36,113,163,.4); }
+
+    /* ── TABS ── */
+    .dante-tabs { background: var(--parch); border-bottom: 1px solid var(--border); padding: 0 1rem; }
+    .dante-tabs .nav-link {
+      font-family: 'Source Sans 3', sans-serif; font-size: .82rem;
+      color: var(--muted); border: none; border-bottom: 2px solid transparent;
+      padding: .65rem 1rem; background: none;
+      transition: color .2s;
+    }
+    .dante-tabs .nav-link:hover { color: var(--text); }
+    .dante-tabs .nav-link.active {
+      color: var(--gold); border-bottom-color: var(--gold); background: none;
+    }
+
+    /* ── LAYOUT ── */
+    .main-content { padding: 1.25rem; }
+
+    /* ── CARD ── */
+    .d-card {
+      background: var(--vellum); border: 1px solid var(--border);
+      border-radius: 6px; padding: 1rem;
+    }
+    .d-card-title {
+      font-family: 'Cinzel', serif; font-size: .78rem;
+      color: var(--gold); letter-spacing: .06em;
+      text-transform: uppercase; margin-bottom: .75rem;
+    }
+
+    /* ── STAT BOXES ── */
+    .stat-box {
+      background: var(--vellum); border: 1px solid var(--border);
+      border-radius: 6px; padding: .9rem .75rem; text-align: center;
+    }
+    .stat-num {
+      font-family: 'Cinzel', serif; font-size: 1.8rem;
+      color: var(--gold); line-height: 1;
+    }
+    .stat-label {
+      font-size: .68rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em; margin-top: .25rem;
+    }
+
+    /* ── FORM CONTROLS ── */
+    .form-control, .form-select {
+      background: var(--parch) !important; border: 1px solid var(--border) !important;
+      color: var(--text) !important; font-size: .83rem;
+    }
+    .form-control::placeholder { color: var(--muted) !important; }
+    .form-control:focus, .form-select:focus {
+      border-color: var(--gold-dim) !important;
+      box-shadow: 0 0 0 .15rem rgba(212,168,67,.15) !important;
+    }
+    .form-check-input { background-color: var(--parch); border-color: var(--border); }
+    .form-check-input:checked {
+      background-color: var(--gold-dim); border-color: var(--gold-dim);
+    }
+    .form-range::-webkit-slider-thumb { background: var(--gold); }
+
+    /* ── BUTTONS ── */
+    .btn-gold {
+      background: var(--gold); color: #1a1400;
+      font-weight: 600; border: none; font-size: .82rem;
+    }
+    .btn-gold:hover { background: #e0b84e; color: #1a1400; }
+    .btn-outline-parch {
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-size: .82rem;
+    }
+    .btn-outline-parch:hover { background: var(--vellum); color: var(--text); }
+
+    /* ── TERCET CARDS ── */
+    .terzina-card {
+      border-left: 3px solid var(--border);
+      padding: .5rem .8rem; margin: .3rem .2rem;
+      font-family: 'IM Fell English', serif; font-size: .88rem;
+      line-height: 1.7; display: inline-block;
+      max-width: 300px; vertical-align: top;
+      background: var(--parch); border-radius: 0 4px 4px 0;
+      white-space: pre-line;
+    }
+    .terzina-card.positive { border-color: var(--para); background: rgba(36,113,163,.09); }
+    .terzina-card.negative { border-color: var(--inferno); background: rgba(192,57,43,.09); }
+    .terzina-card .t-ref { font-family: 'Source Sans 3'; font-size: .7rem; color: var(--muted); margin-bottom: .3rem; font-style: normal; }
+
+    /* ── KWIC TABLE ── */
+    #kwic-table { border-collapse: collapse; width: 100%; }
+    #kwic-table td { padding: .22rem .4rem; font-size: .8rem; border-bottom: 1px solid var(--border); }
+    .kwic-ref { white-space: nowrap; }
+    .kwic-left { text-align: right; color: var(--muted); font-family: 'IM Fell English', serif; }
+    .kwic-match { text-align: center; font-weight: 600; color: var(--gold); padding: 0 .6rem; background: rgba(212,168,67,.08); }
+    .kwic-right { color: var(--muted); font-family: 'IM Fell English', serif; }
+
+    /* ── WORD CLOUD ── */
+    #wordcloud-container {
+      position: relative; width: 100%; height: 380px; overflow: hidden;
+    }
+    .wc-word {
+      position: absolute; cursor: pointer; font-family: 'IM Fell English', serif;
+      transition: filter .15s, transform .15s;
+    }
+    .wc-word:hover { filter: brightness(1.5); transform: scale(1.12); z-index: 10; }
+
+    /* ── MARKS ── */
+    mark {
+      background: rgba(212,168,67,.22); color: var(--gold);
+      border-radius: 2px; padding: 0 2px;
+    }
+
+    /* ── SCROLLABLE AREA ── */
+    .scroll-area { max-height: 58vh; overflow-y: auto; }
+
+    /* ── ALERTS ── */
+    .alert-dante {
+      background: rgba(212,168,67,.1); border: 1px solid var(--gold-dim);
+      color: var(--gold); border-radius: 4px; padding: .6rem .9rem; font-size: .82rem;
+    }
+
+    /* ── SENTIMENT CARDS ── */
+    .sent-card {
+      border-left: 3px solid var(--border); padding: .5rem .75rem;
+      margin: .3rem 0; border-radius: 0 4px 4px 0;
+    }
+    .sent-card.positive { border-color: var(--para); background: rgba(36,113,163,.08); }
+    .sent-card.negative { border-color: var(--inferno); background: rgba(192,57,43,.08); }
+    .sent-card .t-text {
+      font-family: 'IM Fell English', serif; font-size: .87rem;
+      line-height: 1.65; white-space: pre-line;
+    }
+    .sent-card .t-meta { font-size: .7rem; color: var(--muted); margin-bottom: .3rem; }
+
+    /* ── PLOTLY OVERRIDES ── */
+    .js-plotly-plot .plotly .bg { fill: transparent !important; }
+    .modebar { display: none !important; }
+
+    /* ── SPINNER ── */
+    .mini-spin {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--gold);
+      border-radius: 50%; animation: spin .7s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── BACK BUTTON ── */
+    .back-btn {
+      border: 1px solid var(--border); background: transparent;
+      color: var(--muted); font-size: .78rem; border-radius: 4px;
+      padding: .25rem .7rem; cursor: pointer; margin-bottom: .75rem;
+    }
+    .back-btn:hover { color: var(--text); border-color: var(--gold-dim); }
+
+    /* Cantica colored text */
+    .c-inf { color: #e98a82; }
+    .c-pur { color: #ecaf6f; }
+    .c-par { color: #7db6da; }
+
+    /* ── CANTO MODAL ── */
+    #cantoModal .modal-content {
+      background: var(--vellum) !important;
+      border: 1px solid var(--gold-dim) !important;
+      box-shadow: 0 10px 60px rgba(0,0,0,.6), 0 0 40px rgba(212,168,67,.12);
+    }
+    #cantoModal .modal-header, #cantoModal .modal-footer {
+      border-color: var(--border) !important;
+    }
+    #cantoModal .btn-close {
+      filter: invert(1) grayscale(100%) brightness(1.3);
+      opacity: .55;
+    }
+    #cantoModal .btn-close:hover { opacity: 1; }
+    #canto-modal-title {
+      font-family: 'Cinzel', serif; color: var(--gold);
+      letter-spacing: .06em; font-size: 1rem;
+    }
+    .terzina-focus {
+      outline: 2px solid var(--gold);
+      box-shadow: 0 0 20px rgba(212,168,67,.35);
+      animation: focus-pulse 1.6s ease-out;
+    }
+    @keyframes focus-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(212,168,67,.85); }
+      55%  { box-shadow: 0 0 0 12px rgba(212,168,67,0); }
+      100% { box-shadow: 0 0 20px rgba(212,168,67,.35); }
+    }
+
+    /* ── Clickable rows / cards ── */
+    #kwic-table tbody tr { cursor: pointer; transition: background .15s; }
+    #kwic-table tbody tr:hover { background: rgba(212,168,67,.06); }
+    .sent-card { cursor: pointer; transition: background .15s; }
+    .sent-card:hover { filter: brightness(1.15); }
+    .terzina-card { cursor: pointer; }
+    .click-hint {
+      font-size: .7rem; color: var(--muted); font-style: italic;
+      margin-bottom: .4rem;
+    }
+
+    /* ── COSMOLOGY MAPS ── */
+    .cosmo-intro {
+      text-align: center; color: var(--muted); font-size: .85rem;
+      font-style: italic; margin-bottom: 1rem;
+      font-family: 'IM Fell English', serif;
+    }
+    .cosmo-wrap {
+      background: var(--vellum); border: 1px solid var(--border);
+      border-radius: 6px; padding: .8rem .5rem;
+      position: relative; overflow: hidden;
+    }
+    .cosmo-heading {
+      font-family: 'Cinzel', serif; font-size: 1rem;
+      letter-spacing: .15em; text-align: center;
+      margin-bottom: .5rem; text-transform: uppercase;
+    }
+    .cosmo-svg-slot svg {
+      width: 100%; height: auto; display: block;
+      max-height: 680px;
+    }
+    .cosmo-svg-slot .region-shape {
+      cursor: pointer;
+      transition: filter .15s, opacity .15s;
+    }
+    .cosmo-svg-slot .region-shape:hover {
+      filter: brightness(1.35) drop-shadow(0 0 4px var(--gold));
+    }
+    .cosmo-svg-slot .region-shape.active {
+      filter: brightness(1.5) drop-shadow(0 0 6px var(--gold));
+    }
+    .cosmo-svg-slot .region-label {
+      fill: #f5efdf; font-size: 9px; pointer-events: none;
+      font-family: 'Source Sans 3', sans-serif;
+      text-anchor: middle; paint-order: stroke;
+      stroke: rgba(14,12,9,.8); stroke-width: 2.5px;
+      dominant-baseline: middle;
+    }
+    .cosmo-svg-slot .region-label.small { font-size: 7.5px; }
+    .cosmo-svg-slot .map-title {
+      fill: var(--gold); font-family: 'Cinzel', serif;
+      font-size: 11px; letter-spacing: .08em;
+      text-anchor: middle;
+    }
+    .cosmo-svg-slot .decor { pointer-events: none; }
+
+    /* Canto chip in detail */
+    .canto-chip {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 30px; height: 28px; padding: 0 .4rem;
+      border-radius: 4px; font-size: .82rem; font-weight: 600;
+      cursor: pointer; user-select: none;
+      border: 1px solid var(--border); background: var(--parch);
+      color: var(--text); transition: all .15s;
+    }
+    .canto-chip:hover {
+      border-color: var(--gold); color: var(--gold);
+      box-shadow: 0 0 8px rgba(212,168,67,.2);
+    }
+    #region-wordcloud {
+      position: relative; width: 100%; height: 220px;
+      overflow: hidden; background: rgba(14,12,9,.3);
+      border-radius: 4px;
+    }
+    #region-wordcloud .wc-word { cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="loading-title">⚜ DIVINA COMMEDIA</div>
+  <div class="loading-verse">Nel mezzo del cammin di nostra vita...</div>
+  <div class="dot-row"><span></span><span></span><span></span></div>
+  <div id="loading-msg" style="margin-top:1.2rem;font-size:.75rem;color:var(--muted)">Caricamento dati...</div>
+</div>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <span class="brand">⚜ Divina Commedia — Analisi NLP</span>
+  <div class="d-flex gap-2">
+    <span class="cantica-pill pill-inf">Inferno</span>
+    <span class="cantica-pill pill-pur">Purgatorio</span>
+    <span class="cantica-pill pill-par">Paradiso</span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="dante-tabs">
+  <ul class="nav" id="mainTabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-umap">🔮 UMAP</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-cosmologia">🏔 Cosmologia</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-concordanze">📖 Concordanze</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-frequenze">📊 Frequenze</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-rete">🕸 Rete Lessicale</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-sentiment">🎭 Sentiment</a></li>
+  </ul>
+</div>
+
+<div class="main-content">
+<div class="tab-content">
+
+<!-- ═══════════════════════════════════════════════
+     TAB 1 — MAPPA UMAP
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade show active" id="tab-umap">
+
+  <!-- Stats Row -->
+  <div class="row g-2 mb-3" id="stats-row">
+    <div class="col-6 col-md-3"><div class="stat-box"><div class="stat-num" id="s-canti">—</div><div class="stat-label">Canti</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box"><div class="stat-num" id="s-terzine">—</div><div class="stat-label">Terzine</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box"><div class="stat-num" id="s-versi">—</div><div class="stat-label">Versi</div></div></div>
+    <div class="col-6 col-md-3"><div class="stat-box"><div class="stat-num" id="s-vocab">—</div><div class="stat-label">Vocaboli unici</div></div></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-9">
+      <!-- Controls -->
+      <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-parch active" id="btn-2d">2D</button>
+          <button class="btn btn-outline-parch" id="btn-3d">3D</button>
+        </div>
+        <div class="input-group input-group-sm flex-grow-1" style="min-width:180px">
+          <input type="text" class="form-control" id="searchBar" placeholder="Cerca... (AND OR NOT * fuzzy)">
+          <button class="btn btn-gold" id="searchButton">Cerca</button>
+          <button class="btn btn-outline-parch" id="clearButton">✕</button>
+        </div>
+        <div class="form-check form-switch mb-0 ms-1">
+          <input class="form-check-input" type="checkbox" id="highlightSwitch">
+          <label class="form-check-label small" for="highlightSwitch" style="color:var(--muted)">Terzine</label>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="small" style="color:var(--muted);white-space:nowrap">Fuzzy:</span>
+        <input type="range" class="form-range" id="similaritySlider" min="0" max="1" step="0.01" value="0" style="flex:1">
+        <span id="similarityValue" class="small" style="color:var(--muted);min-width:20px">0</span>
+      </div>
+      <div id="plot" style="width:100%;height:480px"></div>
+    </div>
+
+    <div class="col-lg-3">
+      <div class="d-card mb-3">
+        <div class="d-card-title">Canto selezionato</div>
+        <div id="canto-info" style="color:var(--muted);font-size:.8rem">Clicca su un punto della mappa.</div>
+      </div>
+      <div class="d-card" id="search-stats-box" style="display:none">
+        <div class="d-card-title">Risultati ricerca</div>
+        <div id="search-stats-content" style="font-size:.82rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dropdown-hint" class="click-hint mt-2" style="display:none">💡 Doppio click su una terzina per aprire il canto completo</div>
+  <div id="dropdown" class="mt-3"></div>
+
+  <div class="mt-3">
+    <button id="generateQuizButton" class="btn btn-gold" style="display:none">🎯 Crea Quiz dai canti selezionati</button>
+    <div class="mini-spin ms-2" id="loadingSpinner" style="display:none"></div>
+  </div>
+  <div id="result" class="mt-3"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB — COSMOLOGIA (regni interattivi)
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-cosmologia">
+  <div class="cosmo-intro">
+    Clicca su un cerchio, una cornice, una bolgia o un cielo per esplorare i canti e le parole caratteristiche di quel luogo.
+  </div>
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="cosmo-wrap">
+        <div class="cosmo-heading" style="color:#e98a82">Inferno</div>
+        <div id="map-inferno" class="cosmo-svg-slot"></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="cosmo-wrap">
+        <div class="cosmo-heading" style="color:#ecaf6f">Purgatorio</div>
+        <div id="map-purgatorio" class="cosmo-svg-slot"></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="cosmo-wrap">
+        <div class="cosmo-heading" style="color:#7db6da">Paradiso</div>
+        <div id="map-paradiso" class="cosmo-svg-slot"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail panel: appears when a region is clicked -->
+  <div class="d-card mt-3" id="region-detail" style="display:none">
+    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+      <div>
+        <div id="region-title" style="font-family:'Cinzel',serif;color:var(--gold);font-size:1.05rem;letter-spacing:.05em"></div>
+        <div id="region-subtitle" style="color:var(--muted);font-size:.85rem;margin-top:.2rem"></div>
+      </div>
+      <button class="btn btn-outline-parch btn-sm" id="region-close">✕ Chiudi</button>
+    </div>
+    <hr style="border-color:var(--border);margin:.7rem 0">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.5rem">Canti</div>
+        <div id="region-cantos" style="display:flex;flex-wrap:wrap;gap:.35rem"></div>
+        <div class="click-hint mt-2">Clicca un numero per aprire il canto</div>
+      </div>
+      <div class="col-md-7">
+        <div style="font-family:'Cinzel',serif;color:var(--gold);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.5rem">Parole caratteristiche del luogo</div>
+        <div id="region-wordcloud"></div>
+        <div id="region-wc-caption" style="font-size:.72rem;color:var(--muted);margin-top:.5rem"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 2 — CONCORDANZE
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-concordanze">
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="d-card">
+        <div class="d-card-title">Mappa delle concordanze</div>
+        <div class="d-flex gap-2 mb-3">
+          <input type="text" class="form-control form-control-sm" id="conc-input" placeholder="parola o radice* (es: amor*, luce, inferno)">
+          <select class="form-select form-select-sm" id="conc-cantica" style="max-width:140px">
+            <option value="all">Tutte</option>
+            <option value="Inferno">Inferno</option>
+            <option value="Purgatorio">Purgatorio</option>
+            <option value="Paradiso">Paradiso</option>
+          </select>
+          <button class="btn btn-gold btn-sm" id="conc-btn">Analizza</button>
+        </div>
+        <div id="heatmap-div" style="width:100%;height:340px"></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="d-card mb-3">
+        <div class="d-card-title">Statistiche</div>
+        <div id="conc-stats" style="font-size:.82rem;color:var(--muted)">Cerca una parola per le statistiche.</div>
+      </div>
+      <div class="d-card">
+        <div class="d-card-title">Per cantica</div>
+        <div id="conc-pie" style="height:200px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KWIC -->
+  <div class="d-card mt-3" id="kwic-section" style="display:none">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="d-card-title mb-0">Concordanze KWIC</div>
+      <div class="d-flex align-items-center gap-2">
+        <input type="number" class="form-control form-control-sm" id="kwic-ctx" value="5" min="1" max="12" style="width:60px">
+        <span style="font-size:.75rem;color:var(--muted)">parole ctx.</span>
+      </div>
+    </div>
+    <div class="click-hint">💡 Doppio click su una riga per aprire il canto completo</div>
+    <div class="scroll-area">
+      <table id="kwic-table"><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 3 — FREQUENZE
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-frequenze">
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="d-card">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+          <div class="d-card-title mb-0">Frequenze lessicali</div>
+          <div class="d-flex gap-1 flex-wrap">
+            <select class="form-select form-select-sm" id="freq-mode" style="max-width:140px" title="Modalità di ranking">
+              <option value="tfidf" selected>Distintività</option>
+              <option value="freq">Frequenza</option>
+            </select>
+            <select class="form-select form-select-sm" id="freq-cantica" style="max-width:125px">
+              <option value="all">Tutte</option>
+              <option value="Inferno">Inferno</option>
+              <option value="Purgatorio">Purgatorio</option>
+              <option value="Paradiso">Paradiso</option>
+            </select>
+            <select class="form-select form-select-sm" id="freq-topn" style="max-width:80px">
+              <option value="20">Top 20</option>
+              <option value="30" selected>Top 30</option>
+              <option value="50">Top 50</option>
+            </select>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-center mb-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="stopword-sw" checked>
+            <label class="form-check-label small" for="stopword-sw" style="color:var(--muted)">Stopwords</label>
+          </div>
+          <div class="d-flex gap-1 align-items-center">
+            <label class="small mb-0" style="color:var(--muted)">Freq. min:</label>
+            <input type="number" class="form-control form-control-sm" id="freq-minfreq" value="3" min="1" max="9999" style="width:62px">
+          </div>
+          <div class="d-flex gap-1 align-items-center">
+            <label class="small mb-0" style="color:var(--muted)">Freq. max:</label>
+            <input type="number" class="form-control form-control-sm" id="freq-maxfreq" value="" placeholder="∞" title="Vuoto o negativo = nessun limite" style="width:62px">
+          </div>
+        </div>
+        <div id="freq-chart" style="height:400px"></div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.35rem" id="freq-caption"></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="d-card">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
+          <div class="d-card-title mb-0">Nuvola di parole</div>
+          <div class="d-flex gap-1 flex-wrap">
+            <select class="form-select form-select-sm" id="cloud-mode" style="max-width:140px" title="Modalità di selezione">
+              <option value="tfidf" selected>Distintività</option>
+              <option value="freq">Frequenza</option>
+            </select>
+            <select class="form-select form-select-sm" id="cloud-cantica" style="max-width:125px">
+              <option value="all">Tutte</option>
+              <option value="Inferno">Inferno</option>
+              <option value="Purgatorio">Purgatorio</option>
+              <option value="Paradiso">Paradiso</option>
+            </select>
+            <input type="number" class="form-control form-control-sm" id="cloud-minfreq" value="3" min="1" max="9999" title="Frequenza minima" style="width:62px">
+            <input type="number" class="form-control form-control-sm" id="cloud-maxfreq" value="" placeholder="∞" title="Frequenza massima (vuoto = ∞)" style="width:62px">
+            <button class="btn btn-gold btn-sm" id="cloud-btn">Genera</button>
+          </div>
+        </div>
+        <div id="wordcloud-container"></div>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:.4rem" id="cloud-caption"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-card mb-3">
+    <div class="d-card-title">Confronto tra cantiche (freq. per mille parole)</div>
+    <div id="compare-chart" style="height:350px"></div>
+  </div>
+
+  <div class="d-card">
+    <div class="d-card-title">Hapax Legomena <span style="font-family:'Source Sans 3';font-size:.7rem;color:var(--muted);text-transform:none;letter-spacing:0">— parole che compaiono una sola volta</span></div>
+    <div id="hapax-div" style="font-size:.82rem;color:var(--muted)"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 4 — RETE LESSICALE
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-rete">
+  <div class="row g-3">
+    <div class="col-lg-9">
+      <div class="d-card">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+          <div class="d-card-title mb-0">Rete di co-occorrenze</div>
+          <div class="d-flex gap-1 flex-wrap">
+            <select class="form-select form-select-sm" id="net-mode" style="max-width:140px" title="Modalità di selezione dei nodi">
+              <option value="tfidf" selected>Distintività</option>
+              <option value="freq">Frequenza</option>
+            </select>
+            <select class="form-select form-select-sm" id="net-cantica" style="max-width:125px">
+              <option value="all">Tutte</option>
+              <option value="Inferno">Inferno</option>
+              <option value="Purgatorio">Purgatorio</option>
+              <option value="Paradiso">Paradiso</option>
+            </select>
+            <select class="form-select form-select-sm" id="net-topn" style="max-width:90px">
+              <option value="30">30 nodi</option>
+              <option value="50" selected>50 nodi</option>
+              <option value="80">80 nodi</option>
+              <option value="120">120 nodi</option>
+            </select>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-3 align-items-center mb-2">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="net-stopwords" checked>
+            <label class="form-check-label small" for="net-stopwords" style="color:var(--muted)">Stopwords</label>
+          </div>
+          <div class="d-flex gap-1 align-items-center">
+            <label class="small mb-0" style="color:var(--muted)">Freq. min:</label>
+            <input type="number" class="form-control form-control-sm" id="net-minfreq" value="3" min="1" max="9999" style="width:66px">
+          </div>
+          <div class="d-flex gap-1 align-items-center">
+            <label class="small mb-0" style="color:var(--muted)">Freq. max:</label>
+            <input type="number" class="form-control form-control-sm" id="net-maxfreq" value="" placeholder="∞" title="Vuoto o valore negativo = nessun limite" style="width:66px">
+          </div>
+          <button class="btn btn-gold btn-sm ms-auto" id="net-build">Costruisci</button>
+        </div>
+        <div id="network-div" style="width:100%;height:510px"></div>
+        <div class="click-hint mt-2" id="net-caption"></div>
+      </div>
+    </div>
+    <div class="col-lg-3">
+      <div class="d-card mb-3">
+        <div class="d-card-title">Come leggere la rete</div>
+        <p style="font-size:.78rem;color:var(--muted);line-height:1.55">
+          Ogni nodo è una parola. Le connessioni indicano co-occorrenza nella stessa terzina.
+          La <strong style="color:var(--text)">dimensione</strong> del nodo riflette la frequenza assoluta;
+          lo <strong style="color:var(--text)">spessore</strong> del arco riflette la forza della co-occorrenza.
+        </p>
+        <p style="font-size:.78rem;color:var(--muted)">Clicca un nodo per i dettagli.</p>
+      </div>
+      <div class="d-card mb-3">
+        <div class="d-card-title">Nodo selezionato</div>
+        <div id="node-info" style="font-size:.8rem;color:var(--muted)">—</div>
+      </div>
+      <div class="d-card">
+        <div class="d-card-title">Top 10 per centralità</div>
+        <div id="centrality-list" style="font-size:.8rem"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     TAB 5 — SENTIMENT
+═══════════════════════════════════════════════ -->
+<div class="tab-pane fade" id="tab-sentiment">
+  <div class="row g-3 mb-3">
+    <div class="col-lg-8">
+      <div class="d-card">
+        <div class="d-card-title">Andamento del sentiment — canto per canto</div>
+        <div id="sentiment-timeline" style="height:360px"></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="d-card mb-3">
+        <div class="d-card-title">Distribuzione globale</div>
+        <div id="sentiment-pie" style="height:220px"></div>
+      </div>
+      <div class="d-card">
+        <div class="d-card-title">Riepilogo</div>
+        <div id="sentiment-summary" style="font-size:.82rem"></div>
+      </div>
+    </div>
+  </div>
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="d-card">
+        <div class="d-card-title">🔵 Terzine più positive</div>
+        <div class="click-hint">💡 Doppio click su una terzina per aprire il canto</div>
+        <div class="scroll-area" id="most-positive"></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="d-card">
+        <div class="d-card-title">🔴 Terzine più negative</div>
+        <div class="click-hint">💡 Doppio click su una terzina per aprire il canto</div>
+        <div class="scroll-area" id="most-negative"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- tab-content -->
+</div><!-- main-content -->
+
+<footer style="text-align:center;padding:.9rem;font-size:.72rem;color:var(--muted);border-top:1px solid var(--border)">
+  Web app e analisi dati: Giovanni Borghi, prof di fisica @ Liceo Fanti, Carpi &nbsp;·&nbsp; Testi: Dante Alighieri
+</footer>
+
+<!-- ═══════════════════════════════════════════════
+     SCRIPTS
+═══════════════════════════════════════════════ -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════
+//  GLOBALS
+// ═══════════════════════════════════════════════════════════
+let globalData    = null;
+let globalTercet  = null;
+let nlpEngine     = null;
+let currentView   = '2d';
+let conditions    = null;
+let similarityThreshold = 0;
+let switchActivated = false;
+let highlightedPoints = [];
+let selectedPoints  = [];
+
+const C_COLOR = { Inferno:'#c0392b', Purgatorio:'#c87c2a', Paradiso:'#2471a3' };
+const C_INT   = { Inferno:2, Purgatorio:1, Paradiso:0 };
+const CANTICHE = ['Inferno','Purgatorio','Paradiso'];
+
+// ── Italian / medieval stopwords (comprehensive) ──────────
+const STOP = new Set([
+  // articoli
+  'il','lo','la','i','gli','le','un','una','uno','l',
+  // preposizioni semplici
+  'di','a','ad','da','in','con','su','per','tra','fra',
+  // preposizioni articolate
+  'del','della','dei','delle','degli','dell','dello',
+  'al','alla','ai','alle','agli','all','allo',
+  'dal','dalla','dai','dalle','dagli','dall','dallo',
+  'nel','nella','nei','nelle','negli','nell','nello',
+  'sul','sulla','sui','sulle','sugli','sull','sullo',
+  'col','colla','coi','colle','cogli','coll',
+  'pel','pella','pei','pelle','pegli',
+  // congiunzioni
+  'e','ed','o','od','ma','se','che','perché','perchè','ché','ch',
+  'anche','ancora','ancor','già','pure','pur','anzi','però','però',
+  'quindi','dunque','allora','allor','mentre','quando','finché',
+  'poiché','poiche','sebbene','benché','purché','ossia','ovvero',
+  'cioè','ciò','cio',
+  // pronomi personali, riflessivi, clitici (anche arcaici)
+  'io','tu','lui','lei','noi','voi','loro','me','te','sé','se','sen',
+  'mi','ti','ci','vi','si','ne','lo','la','li','le','gli',
+  'glielo','gliela','glieli','gliele','gliene',
+  'ei','ell','elli','elle','esso','essa','essi','esse','egli','ella',
+  'mene','tene','sene','cene','vene','men',
+  // possessivi
+  'mio','mia','miei','mie','tuo','tua','tuoi','tue','suo','sua','suoi','sue',
+  'nostro','nostra','nostri','nostre','vostro','vostra','vostri','vostre',
+  // dimostrativi e indefiniti
+  'questo','questa','questi','queste','quest',
+  'quello','quella','quelli','quelle','quel','quei','quegli','quell',
+  'cotal','cotali','cotanto','cotanta','tal','tali',
+  'ogni','ognun','ognuno','ognuna','ogne',
+  'altri','altrui','altro','altra','altre','altr',
+  'tutto','tutta','tutti','tutte','tutt',
+  'ciascun','ciascuna','ciascuno',
+  'alcun','alcuno','alcuna','alcuni','alcune',
+  'nessun','nessuno','nessuna',
+  'qualche','qualcuno','qualcuna','chiunque',
+  'stesso','stessa','stessi','stesse','medesimo','medesima','medesimi','medesime',
+  'qual','quale','quali','cui','chi',
+  // quantificatori
+  'molto','molti','molta','molte',
+  'poco','pochi','poca','poche','po',
+  'tanto','tanti','tanta','tante',
+  'quanto','quanti','quanta','quante',
+  'assai','troppo','parecchio','alquanto','alquanti','alquante',
+  'meno','meglio','peggio','più','piu',
+  // avverbi di tempo
+  'ora','or','adesso','ormai','sempre','mai','giammai',
+  'poi','prima','dopo','subito','tosto','presto','tardi',
+  'talvolta','talor','talora','oggi','ieri','domani','sovente','spesso',
+  // avverbi di luogo
+  'qui','qua','là','lì','costì','costà','quinci','indi','ivi',
+  'dove','ove','onde','donde','quivi','altrove',
+  'dentro','fuori','fuor','sopra','sovra','sotto',
+  'dietro','innanzi','avanti','presso','appresso','vicino','lontano','lungi','lunge',
+  // avverbi di modo / particelle
+  'così','cosi','come','sì','si','no','non','forse','quasi','appena',
+  'davvero','certo','certamente','proprio','veramente','invero','infatti',
+  'almen','almeno','solo','soltanto','solamente','unicamente',
+  'bene','ben','male','mal','gran','grande','grand',
+  'sol','ver','par','vêr',
+  // ESSERE
+  'sono','son','sei','è','e\'','siamo','siete','sia','siam','siate','sien','sieno','sian',
+  'ero','eri','era','eravamo','eravate','erano','eran','eravam',
+  'fui','fosti','fu','fummo','foste','furono','fur','furo','furon','fuor','furor',
+  'fora','fore','fosse','fossi','fussi','fusse','fossero','fussero',
+  'essere','esser','stato','stata','stati','state','stando','essendo',
+  // AVERE
+  'ho','hai','ha','abbiamo','avete','hanno','han',
+  'avevo','avevi','aveva','avevamo','avevate','avevano','avean','aveano','avea',
+  'ebbi','ebbe','ebbero','ebber','avesti','avemmo','aveste',
+  'abbia','abbiano','avesse','avessero','avesser',
+  'aver','avere','avuto','avuta','avuti','avute','avendo',
+  // FARE
+  'fo','fai','fa','facciamo','fate','fanno',
+  'facevo','facevi','faceva','facevamo','facevate','facevano','facea','facean','faceano',
+  'feci','facesti','fece','facemmo','faceste','fecero','fecer','fer','fero',
+  'faccia','facciano','facessi','facesse','facessero',
+  'far','fare','fatto','fatta','fatti','fatte','facendo',
+  // DIRE
+  'dico','dici','dice','diciamo','dite','dicono','dicon',
+  'dicevo','dicevi','diceva','dicevamo','dicevate','dicevano','dicea','dicean',
+  'dissi','dicesti','disse','dicemmo','diceste','dissero','disser',
+  'dica','dicano','dicessi','dicesse','dicessero',
+  'dir','dire','detto','detta','detti','dette','dicendo',
+  // VEDERE
+  'vedo','vedi','vede','vediamo','vedete','vedono','vedon',
+  'veggo','veggio','veggon','veggiamo','veggiate','veggia','veggian',
+  'vedevo','vedeva','vedevano','vedea','vedean',
+  'vidi','vedesti','vide','vedemmo','vedeste','videro','vider',
+  'veda','vedano','vedessi','vedesse','vedessero',
+  'veder','vedere','visto','vista','visti','viste','veduto','veduta','veduti','vedute','vedendo',
+  // POTERE
+  'posso','puoi','può','puo','possiamo','potete','possono','possan','possano','puon','puote','ponno',
+  'potevo','potevi','poteva','potevamo','potevate','potevano','potea','potean','poteano',
+  'potei','potesti','poté','pote','potemmo','poteste','poterono','potero',
+  'possa','potessi','potesse','potessero',
+  'poter','potere','potuto','potuta','potuti','potute','potendo',
+  // VOLERE
+  'voglio','vuoi','vuol','vuole','vogliamo','volete','vogliono','voglion','vo',
+  'volevo','volevi','voleva','volevamo','volevate','volevano','volea','volean',
+  'volli','volesti','volle','volemmo','voleste','vollero','voller',
+  'voglia','vogliano','volessi','volesse','volessero',
+  'voler','volere','voluto','voluta','voluti','volute','volendo',
+  // STARE
+  'sto','stai','sta','stiamo','stanno',
+  'stavo','stavi','stava','stavamo','stavate','stavano','stavan',
+  'stetti','stesti','stette','stemmo','steste','stettero','stetter',
+  'stia','stiano','stessi','stesse','stessero',
+  'star','stare','stando',
+  // ANDARE
+  'vado','vai','va','andiamo','andate','vanno',
+  'andavo','andavi','andava','andavamo','andavate','andavano',
+  'andai','andasti','andò','andò','andammo','andaste','andarono','andaro',
+  'vada','vadano','andassi','andasse','andassero',
+  'andar','andare','andato','andata','andati','andando',
+  // VENIRE
+  'vengo','vieni','viene','vien','veniamo','venite','vengono','vengon',
+  'venivo','venivi','veniva','venivamo','venivate','venivano','venian','venia',
+  'venni','venisti','venne','venimmo','veniste','vennero','venner',
+  'venga','vengano','venissi','venisse','venissero',
+  'venir','venire','venuto','venuta','venuti','venute','venendo',
+  // DOVERE
+  'devo','debbo','devi','deve','debbe','dobbiamo','dovete','devono','debbon','debbono','debba','deon',
+  'dovevo','doveva','dovevano','dovea','dovean',
+  'dovetti','dovesti','dové','dovemmo','dovesse','dovessero',
+  'dover','dovere','dovuto','dovendo',
+  // semanticamente povero
+  'modo','modi','cosa','cose','volta','volte','fiata','fiate',
+  // frammenti apostrofo
+  's','l','d','m','n','t','c','v','r','co','de','né','nè','ne',
+]);
+
+// ═══════════════════════════════════════════════════════════
+//  NLP ENGINE
+// ═══════════════════════════════════════════════════════════
+class DanteNLP {
+  constructor(tercetData) {
+    this.td = tercetData;
+    this._build();
+  }
+
+  _tok(text) {
+    return text.toLowerCase()
+      .replace(/[''`]/g,"'")
+      .replace(/[^\w\sàáèéìíòóùú]/g,' ')
+      .split(/\s+/)
+      .map(w => w.replace(/^'+|'+$/g,''))
+      .filter(w => w.length > 1);
+  }
+
+  _build() {
+    this.byCantica = { Inferno:[], Purgatorio:[], Paradiso:[] };
+    this.all = [];
+    this.corpus = {}; // cantica → canto → tokens[]
+
+    for (const [c, canti] of Object.entries(this.td)) {
+      this.corpus[c] = {};
+      for (const [canto, terz] of Object.entries(canti)) {
+        const toks = [];
+        for (const [, txt] of terz) {
+          const t = this._tok(txt);
+          toks.push(...t);
+        }
+        this.corpus[c][canto] = toks;
+        this.all.push(...toks);
+        if (this.byCantica[c]) this.byCantica[c].push(...toks);
+      }
+    }
+
+    this.gFreq  = this._freq(this.all);
+    this.cFreq  = {};
+    for (const [c, toks] of Object.entries(this.byCantica)) this.cFreq[c] = this._freq(toks);
+    this.vocab  = new Set(this.all);
+    this.hapax  = new Set([...this.gFreq].filter(([,v]) => v===1).map(([k])=>k));
+
+    this._buildTfIdf();
+  }
+
+  _freq(toks) {
+    const m = new Map();
+    for (const t of toks) m.set(t, (m.get(t)||0)+1);
+    return m;
+  }
+
+  // ── TF-IDF with canti as documents ────────────────────────
+  // For each cantica, aggregates TF-IDF across its canti.
+  // Highlights words that are characteristic of the subset rather
+  // than just frequent overall.
+  _buildTfIdf() {
+    const docs = []; // {cantica, canto, toks}
+    const df = new Map(); // document frequency
+    for (const [c, canti] of Object.entries(this.corpus)) {
+      for (const [canto, toks] of Object.entries(canti)) {
+        docs.push({cantica:c, canto, toks});
+        for (const w of new Set(toks)) df.set(w, (df.get(w)||0)+1);
+      }
+    }
+    const N = docs.length || 1;
+    this.df = df;
+    this.nDocs = N;
+    // Per-cantica aggregated TF-IDF (summed across its canti)
+    this.tfidf = {all: new Map(), Inferno: new Map(), Purgatorio: new Map(), Paradiso: new Map()};
+
+    for (const doc of docs) {
+      const tf = new Map();
+      for (const w of doc.toks) tf.set(w, (tf.get(w)||0)+1);
+      const len = doc.toks.length || 1;
+      for (const [w, c] of tf) {
+        const idf = Math.log(N / df.get(w));
+        const score = (c / len) * idf;
+        this.tfidf.all.set(w, (this.tfidf.all.get(w)||0) + score);
+        if (this.tfidf[doc.cantica]) {
+          this.tfidf[doc.cantica].set(w, (this.tfidf[doc.cantica].get(w)||0) + score);
+        }
+      }
+    }
+  }
+
+  // Ranked by TF-IDF, with stopword and frequency-range filters.
+  // minFreq avoids hapax/near-hapax dominating via their huge IDF (default 3).
+  // maxFreq lets you exclude overly common words too (default Infinity).
+  topRelevant(cantica='all', n=30, stop=true, minFreq=3, maxFreq=Infinity) {
+    const scores = this.tfidf[cantica] || this.tfidf.all;
+    const freq   = cantica==='all' ? this.gFreq : this.cFreq[cantica];
+    let e = [...scores];
+    if (stop) e = e.filter(([w]) => !STOP.has(w) && w.length > 2);
+    e = e.filter(([w]) => {
+      const f = freq?.get(w) || 0;
+      return f >= minFreq && f <= maxFreq;
+    });
+    // Attach frequency as secondary info (as value) so cloud can size on it
+    return e.sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,s]) => [w, freq.get(w)||0, s]);
+  }
+
+  top(cantica='all', n=30, stop=true, minFreq=1, maxFreq=Infinity) {
+    const f = cantica==='all' ? this.gFreq : this.cFreq[cantica];
+    if (!f) return [];
+    let e = [...f];
+    if (stop) e = e.filter(([w]) => !STOP.has(w) && w.length > 2);
+    e = e.filter(([,c]) => c >= minFreq && c <= maxFreq);
+    return e.sort((a,b)=>b[1]-a[1]).slice(0,n);
+  }
+
+  // Compute top words (freq or TF-IDF) on an arbitrary subset of (cantica, canto) pairs.
+  // IDF is computed against the full 100-canto corpus, so TF-IDF reveals
+  // words distinctive of this subset compared to the rest of the Commedia.
+  // Returns entries: [word, localFreq, score]
+  topForCantos(cantoList, n=30, stop=true, minFreq=2, maxFreq=Infinity, mode='tfidf') {
+    // Collect tokens
+    const tokensPerDoc = [];
+    const allTokens = [];
+    for (const {cantica, canto} of cantoList) {
+      const t = this.corpus?.[cantica]?.[canto] || [];
+      if (t.length) { tokensPerDoc.push(t); allTokens.push(...t); }
+    }
+    if (!allTokens.length) return [];
+    const localFreq = this._freq(allTokens);
+
+    if (mode === 'freq') {
+      let e = [...localFreq];
+      if (stop) e = e.filter(([w]) => !STOP.has(w) && w.length > 2);
+      e = e.filter(([,c]) => c >= minFreq && c <= maxFreq);
+      return e.sort((a,b)=>b[1]-a[1]).slice(0,n).map(([w,f]) => [w, f, f]);
+    }
+
+    // TF-IDF: each canto in the list is a doc; IDF uses the *global* 100-doc corpus
+    const scores = new Map();
+    for (const toks of tokensPerDoc) {
+      const tf = this._freq(toks);
+      const len = toks.length || 1;
+      for (const [w, c] of tf) {
+        const dfw = this.df.get(w) || 1;
+        const idf = Math.log(this.nDocs / dfw);
+        scores.set(w, (scores.get(w) || 0) + (c / len) * idf);
+      }
+    }
+    let e = [...scores];
+    if (stop) e = e.filter(([w]) => !STOP.has(w) && w.length > 2);
+    e = e.filter(([w]) => {
+      const f = localFreq.get(w) || 0;
+      return f >= minFreq && f <= maxFreq;
+    });
+    return e.sort((a,b) => b[1]-a[1]).slice(0,n).map(([w,s]) => [w, localFreq.get(w)||0, s]);
+  }
+
+  concordances(term, cantica='all', ctx=5) {
+    const res = [];
+    const wc = term.includes('*');
+    const rx = wc ? new RegExp('^'+term.replace(/\*/g,'.*')+'$') : null;
+    const match = t => wc ? rx.test(t) : t===term;
+
+    for (const [c, canti] of Object.entries(this.td)) {
+      if (cantica!=='all' && c!==cantica) continue;
+      for (const [canto, terz] of Object.entries(canti)) {
+        for (const [terzina, txt] of terz) {
+          const toks = this._tok(txt);
+          toks.forEach((tok,i) => {
+            if (!match(tok)) return;
+            res.push({
+              cantica:c, canto:+canto, terzina:+terzina,
+              left:  toks.slice(Math.max(0,i-ctx),i).join(' '),
+              match: tok,
+              right: toks.slice(i+1,i+1+ctx).join(' '),
+              full:  txt
+            });
+          });
+        }
+      }
+    }
+    return res;
+  }
+
+  heatmap(term, cantica='all') {
+    const data = {};
+    const wc = term.includes('*');
+    const rx = wc ? new RegExp('^'+term.replace(/\*/g,'.*')+'$') : null;
+    const match = t => wc ? rx.test(t) : t===term;
+    const cc = cantica==='all' ? CANTICHE : [cantica];
+
+    for (const c of cc) {
+      data[c] = {};
+      if (!this.td[c]) continue;
+      for (const [canto, terz] of Object.entries(this.td[c])) {
+        let cnt = 0;
+        for (const [,txt] of terz) cnt += this._tok(txt).filter(match).length;
+        data[c][+canto] = cnt;
+      }
+    }
+    return data;
+  }
+
+  cooccurrence(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=3, maxFreq=Infinity) {
+    const picks = mode === 'tfidf'
+      ? this.topRelevant(cantica, topN, stop, minFreq, maxFreq)
+      : this.top(cantica, topN, stop, minFreq, maxFreq);
+    const words = picks.map(row => row[0]);
+    const ws = new Set(words);
+    const mat = {};
+    words.forEach(w => { mat[w]={}; words.forEach(w2 => mat[w][w2]=0); });
+    const cc = cantica==='all' ? CANTICHE : [cantica];
+
+    for (const c of cc) {
+      if (!this.td[c]) continue;
+      for (const terz of Object.values(this.td[c])) {
+        for (const [,txt] of terz) {
+          const uniq = [...new Set(this._tok(txt).filter(w=>ws.has(w)))];
+          for (let i=0;i<uniq.length;i++) for (let j=i+1;j<uniq.length;j++) {
+            mat[uniq[i]][uniq[j]]++;
+            mat[uniq[j]][uniq[i]]++;
+          }
+        }
+      }
+    }
+    return {words, mat};
+  }
+
+  sentimentTimeline() {
+    const res = {};
+    for (const [c, canti] of Object.entries(this.td)) {
+      res[c] = [];
+      for (const canto of Object.keys(canti).map(Number).sort((a,b)=>a-b)) {
+        const terz = canti[canto]; let ps=0,ns=0;
+        for (const [,,sent,sc] of terz) {
+          const s=sent?.toLowerCase();
+          if (s==='positive') ps+=sc||0;
+          else if (s==='negative') ns+=sc||0;
+        }
+        res[c].push({canto, net:(ps-ns)/(terz.length||1), ps, ns, n:terz.length});
+      }
+    }
+    return res;
+  }
+
+  topSentiment(n=8) {
+    const all=[];
+    for (const [c,canti] of Object.entries(this.td))
+      for (const [canto,terz] of Object.entries(canti))
+        for (const [tz,txt,sent,sc] of terz)
+          if (sent) all.push({cantica:c,canto:+canto,terzina:tz,text:txt,sentiment:sent,score:sc||0});
+    const pos = all.filter(t=>t.sentiment?.toLowerCase()==='positive').sort((a,b)=>b.score-a.score).slice(0,n);
+    const neg = all.filter(t=>t.sentiment?.toLowerCase()==='negative').sort((a,b)=>b.score-a.score).slice(0,n);
+    return {pos,neg};
+  }
+
+  stats() {
+    let tz=0,vr=0;
+    for (const c of Object.values(this.td))
+      for (const terz of Object.values(c)) {
+        tz+=terz.length;
+        for (const [,txt] of terz) vr+=txt.split('\n').filter(l=>l.trim()).length;
+      }
+    return {
+      canti: CANTICHE.reduce((s,c)=>s+Object.keys(this.td[c]||{}).length,0),
+      terzine:tz, versi:vr,
+      vocab:this.vocab.size, hapax:this.hapax.size
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PLOTLY HELPERS
+// ═══════════════════════════════════════════════════════════
+const PLOTLY_BASE = {
+  paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+  font:{color:'#c8c0b0',size:11},
+};
+const PL_OPT = {responsive:true, displayModeBar:false};
+
+// ═══════════════════════════════════════════════════════════
+//  UMAP PLOT
+// ═══════════════════════════════════════════════════════════
+function plotData(data, view) {
+  const marker = {
+    size: 9,
+    color: data.map(d=>C_INT[d.color]??1),
+    colorscale:[[0,'#2471a3'],[0.5,'#c87c2a'],[1,'#c0392b']],
+    showscale:false, line:{width:0}
+  };
+  const base = {mode:'markers', marker, text:data.map(d=>d.name), hoverinfo:'text'};
+  const trace = view==='2d'
+    ? {...base, x:data.map(d=>d.x), y:data.map(d=>d.y), type:'scatter'}
+    : {...base, x:data.map(d=>d.x), y:data.map(d=>d.y), z:data.map(d=>d.z), type:'scatter3d'};
+  const layout = {...PLOTLY_BASE, margin:{l:0,r:0,b:0,t:0},
+    ...(view==='2d' ? {dragmode:'select'} : {})};
+
+  Plotly.newPlot('plot',[trace],layout,PL_OPT);
+  bindPlotEvents();
+}
+
+function bindPlotEvents() {
+  const el = document.getElementById('plot');
+  el.on('plotly_click', evt => {
+    const pi = evt.points[0].pointNumber;
+    const pd = globalData[pi];
+    if (!pd) return;
+    const $dr = $('#dropdown');
+    $dr.empty();
+    createTercetCards(pd.cantica, pd.canto, $dr);
+    $dr.show();
+  });
+  el.on('plotly_selected', evt => {
+    if (!evt) return;
+    selectedPoints = evt.points.map(p => {
+      const n = (globalData[p.pointIndex]?.name||'').split('_');
+      return {year:n[0],type:n[1],category:n[3],number:n[4]};
+    });
+    $('#generateQuizButton').toggle(selectedPoints.length > 0);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TERCET CARDS
+// ═══════════════════════════════════════════════════════════
+function createTercetCards(cantica, canto, $el) {
+  const terz = (globalTercet[cantica] || {})[canto]
+            || (globalTercet[cantica] || {})[String(canto)]
+            || [];
+  if (!terz.length) { $el.html('<p style="color:var(--muted)">Nessuna terzina.</p>'); return; }
+
+  const $wrap = $('<div style="display:flex;flex-wrap:wrap;gap:.3rem"></div>');
+  terz.forEach(([tz, txt, sent, sc]) => {
+    const hl = highlightSearchedText(txt, conditions, similarityThreshold);
+    const cls = sent?.toLowerCase()==='positive' ? 'positive' : sent?.toLowerCase()==='negative' ? 'negative' : '';
+    const $c = $(`
+      <div class="terzina-card ${cls}"
+           data-cantica="${cantica}" data-canto="${canto}"
+           data-number="${tz}" data-sentiment="${sent||''}" data-score="${sc||0}">
+        <div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}
+      </div>`);
+    $wrap.append($c);
+  });
+  $el.empty().append($wrap);
+
+  // Update info panel
+  const col = C_COLOR[cantica];
+  $('#canto-info').html(`
+    <div style="margin-bottom:.4rem">
+      <span style="background:${col};color:#fff;border-radius:3px;padding:.1rem .5rem;font-size:.72rem">${cantica}</span>
+      <strong style="margin-left:.4rem">Canto ${canto}</strong>
+    </div>
+    <div style="color:var(--muted);font-size:.78rem">
+      ${terz.length} terzine &nbsp;·&nbsp;
+      ${terz.filter(t=>t[2]?.toLowerCase()==='positive').length} pos &nbsp;·&nbsp;
+      ${terz.filter(t=>t[2]?.toLowerCase()==='negative').length} neg
+    </div>`);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CANTO MODAL (opens from any tercet citation)
+// ═══════════════════════════════════════════════════════════
+let _cantoModalInstance = null;
+function openCantoModal(cantica, canto, highlightTz=null) {
+  const terz = globalTercet?.[cantica]?.[canto]
+            || globalTercet?.[cantica]?.[String(canto)];
+  if (!terz || !terz.length) return;
+
+  // Header
+  const badge = document.getElementById('canto-modal-badge');
+  badge.textContent = cantica;
+  badge.className = 'cantica-pill ' +
+    (cantica==='Inferno'?'pill-inf':cantica==='Purgatorio'?'pill-pur':'pill-par');
+  document.getElementById('canto-modal-title').textContent = `Canto ${canto}`;
+  const nPos = terz.filter(t=>t[2]?.toLowerCase()==='positive').length;
+  const nNeg = terz.filter(t=>t[2]?.toLowerCase()==='negative').length;
+  document.getElementById('canto-modal-sub').textContent =
+    `${terz.length} terzine · ${nPos} pos · ${nNeg} neg`;
+
+  // Body — render all tercets as cards; keep active search highlighting
+  const body = document.getElementById('canto-modal-body');
+  body.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:.4rem';
+
+  terz.forEach(([tz, txt, sent, sc]) => {
+    const hl = highlightSearchedText(txt, conditions, similarityThreshold);
+    const cls = sent?.toLowerCase()==='positive' ? 'positive'
+              : sent?.toLowerCase()==='negative' ? 'negative' : '';
+    const isFocus = highlightTz !== null && +tz === +highlightTz;
+    const card = document.createElement('div');
+    card.className = 'terzina-card ' + cls + (isFocus ? ' terzina-focus' : '');
+    card.setAttribute('data-cantica', cantica);
+    card.setAttribute('data-canto', canto);
+    card.setAttribute('data-number', tz);
+    card.style.cursor = 'default';  // inside modal, disable further nav
+    card.innerHTML = `<div class="t-ref">${cantica} · ${canto} · ${tz}</div>${hl}`;
+    wrap.appendChild(card);
+  });
+  body.appendChild(wrap);
+
+  // Show
+  const modalEl = document.getElementById('cantoModal');
+  if (!_cantoModalInstance) _cantoModalInstance = new bootstrap.Modal(modalEl);
+  _cantoModalInstance.show();
+
+  // Scroll to highlighted tercet after paint
+  if (highlightTz !== null) {
+    setTimeout(() => {
+      const el = body.querySelector('.terzina-focus');
+      if (el) el.scrollIntoView({behavior:'smooth', block:'center'});
+    }, 320);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FREQUENCY CHART
+// ═══════════════════════════════════════════════════════════
+function renderFreqChart(cantica='all', n=30, stop=true, mode='tfidf', minFreq=3, maxFreq=Infinity) {
+  if (!nlpEngine) return;
+  let words, xTitle, caption;
+  const maxStr = maxFreq === Infinity ? '∞' : maxFreq;
+  if (mode === 'tfidf') {
+    // [word, freq, tfidf-score]
+    const rel = nlpEngine.topRelevant(cantica, n, stop, minFreq, maxFreq);
+    words = rel.map(([w,,s]) => [w, s]);
+    xTitle = 'Punteggio TF-IDF (somma sui canti)';
+    const lbl = cantica === 'all' ? 'nell\'opera' : `nel ${cantica}`;
+    caption = `Parole distintive ${lbl}: punteggio alto = ricorre frequentemente nel sottoinsieme ma raramente altrove. Freq ∈ [${minFreq}, ${maxStr}].`;
+  } else {
+    words = nlpEngine.top(cantica, n, stop, minFreq, maxFreq).map(([w,f]) => [w, f]);
+    xTitle = 'Frequenza assoluta';
+    caption = `Parole più frequenti${cantica==='all' ? '' : ' in ' + cantica}. Freq ∈ [${minFreq}, ${maxStr}].`;
+  }
+  if (!words.length) {
+    Plotly.purge('freq-chart');
+    document.getElementById('freq-caption').textContent = 'Nessun risultato con questi filtri — prova ad ampliare l\'intervallo di frequenza.';
+    return;
+  }
+  const col = cantica==='all' ? '#d4a843' : C_COLOR[cantica];
+  Plotly.newPlot('freq-chart',[{
+    x: words.map(([,v]) => v).reverse(),
+    y: words.map(([w]) => w).reverse(),
+    type:'bar', orientation:'h', marker:{color:col, opacity:.85},
+    hovertemplate: '%{y}: %{x:.4f}<extra></extra>'
+  }],{...PLOTLY_BASE, margin:{l:110,r:10,t:10,b:40},
+    xaxis:{gridcolor:'#2e2a22',title:xTitle},
+    yaxis:{gridcolor:'#2e2a22',tickfont:{size:10}}
+  },PL_OPT);
+  document.getElementById('freq-caption').textContent = caption;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COMPARISON CHART
+// ═══════════════════════════════════════════════════════════
+function renderCompareChart() {
+  if (!nlpEngine) return;
+  const topW = nlpEngine.top('all',25,true).map(([w])=>w);
+  const traces = CANTICHE.map(c => {
+    const f = nlpEngine.cFreq[c];
+    const tot = nlpEngine.byCantica[c].length || 1;
+    return {
+      x:topW, y:topW.map(w=>(((f?.get(w)||0)/tot)*1000)),
+      name:c, type:'bar', marker:{color:C_COLOR[c]}
+    };
+  });
+  Plotly.newPlot('compare-chart',traces,{
+    ...PLOTLY_BASE, barmode:'group',
+    margin:{l:45,r:10,t:10,b:75},
+    xaxis:{gridcolor:'#2e2a22',tickangle:-42},
+    yaxis:{gridcolor:'#2e2a22',title:'‰'},
+    legend:{font:{color:'#c8c0b0'}}
+  },PL_OPT);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  WORD CLOUD
+// ═══════════════════════════════════════════════════════════
+function renderCloud(cantica='all', mode='tfidf', minFreq=3, maxFreq=Infinity) {
+  if (!nlpEngine) return;
+  // items: [word, sizeMetric, tooltipInfo]
+  let items;
+  if (mode === 'tfidf') {
+    // topRelevant returns [word, freq, tfidfScore]
+    const rel = nlpEngine.topRelevant(cantica, 90, true, minFreq, maxFreq);
+    items = rel.map(([w, f, s]) => [w, s, `${w} · ${f} occ. · TF-IDF ${s.toFixed(3)}`]);
+  } else {
+    items = nlpEngine.top(cantica, 90, true, minFreq, maxFreq).map(([w, f]) => [w, f, `${w}: ${f} occ.`]);
+  }
+  const cont = document.getElementById('wordcloud-container');
+  cont.innerHTML = '';
+  if (!items.length) {
+    cont.innerHTML = '<p style="color:var(--muted);text-align:center;padding:2rem">Nessuna parola da visualizzare con questi filtri.</p>';
+    return;
+  }
+
+  const W = cont.offsetWidth||500, H = 380;
+  const maxV = items[0][1], minV = items[items.length-1][1] || 0.0001;
+  const palettes = {
+    Inferno:['#e74c3c','#c0392b','#f1948a','#d35400','#cb4335'],
+    Purgatorio:['#e67e22','#f39c12','#d4ac0d','#ca6f1e','#f0c040'],
+    Paradiso:['#2471a3','#1a5276','#5dade2','#85c1e9','#117a8b'],
+    all:['#d4a843','#c0392b','#2471a3','#c87c2a','#8e44ad','#27ae60','#e74c3c'],
+  };
+  const pal = palettes[cantica] || palettes.all;
+  const placed = [];
+  const checkOv = (x,y,fw,fh) =>
+    placed.some(([px,py,pw,ph]) => Math.abs(x-px)<(fw+pw)/2+3 && Math.abs(y-py)<(fh+ph)/2+3);
+
+  for (const [word, val, tip] of items) {
+    const sz = Math.round(11 + ((val-minV)/(maxV-minV||1))*38);
+    const el = document.createElement('span');
+    el.className='wc-word';
+    el.textContent = word;
+    el.style.fontSize = sz+'px';
+    el.style.color = pal[Math.floor(Math.random()*pal.length)];
+    el.title = tip;
+    el.onclick = () => {
+      document.getElementById('conc-input').value = word;
+      bootstrap.Tab.getOrCreateInstance(
+        document.querySelector('[href="#tab-concordanze"]')).show();
+      setTimeout(()=>document.getElementById('conc-btn').click(),120);
+    };
+    const fw = word.length*sz*0.58, fh = sz*1.25;
+    let ok=false;
+    outer: for (let r=0; r<Math.min(W,H)/2; r+=4) {
+      for (let a=0; a<6.28; a+=0.35) {
+        const x=W/2+r*Math.cos(a), y=H/2+r*Math.sin(a);
+        if (x<fw/2||x>W-fw/2||y<fh/2||y>H-fh/2) continue;
+        if (!checkOv(x,y,fw,fh)) {
+          el.style.left=(x-fw/2)+'px'; el.style.top=(y-fh/2)+'px';
+          placed.push([x,y,fw,fh]); ok=true; break outer;
+        }
+      }
+    }
+    if (ok) cont.appendChild(el);
+  }
+
+  // Caption
+  const cap = document.getElementById('cloud-caption');
+  if (cap) {
+    const maxStr = maxFreq === Infinity ? '∞' : maxFreq;
+    cap.textContent = mode === 'tfidf'
+      ? `Modalità distintività (TF-IDF, canti come documenti). Freq ∈ [${minFreq}, ${maxStr}]. Premia le parole caratteristiche di questa selezione.`
+      : `Modalità frequenza: conteggio grezzo, stopwords filtrate. Freq ∈ [${minFreq}, ${maxStr}].`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CONCORDANCE HEATMAP
+// ═══════════════════════════════════════════════════════════
+function renderHeatmap(term, cantica='all') {
+  if (!nlpEngine) return;
+  const data = nlpEngine.heatmap(term, cantica);
+  const cc = cantica==='all' ? CANTICHE : [cantica];
+  const traces = cc.map(c => {
+    const nums = Object.keys(data[c]||{}).map(Number).sort((a,b)=>a-b);
+    return {
+      x:nums, y:nums.map(n=>data[c][n]),
+      name:c, type:'bar', marker:{color:C_COLOR[c]}
+    };
+  });
+  Plotly.newPlot('heatmap-div',traces,{
+    ...PLOTLY_BASE, barmode:'group',
+    margin:{l:45,r:10,t:30,b:45},
+    title:{text:`"${term}"`, font:{color:'#d4a843',size:13}},
+    xaxis:{title:'Canto',gridcolor:'#2e2a22'},
+    yaxis:{title:'Occorrenze',gridcolor:'#2e2a22'},
+    legend:{font:{color:'#c8c0b0'}}
+  },PL_OPT);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  KWIC TABLE
+// ═══════════════════════════════════════════════════════════
+function renderKWIC(term, cantica='all', ctx=5) {
+  if (!nlpEngine) return;
+  const res = nlpEngine.concordances(term, cantica, ctx);
+  const tb = document.querySelector('#kwic-table tbody');
+  tb.innerHTML='';
+
+  if (!res.length) {
+    tb.innerHTML='<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:1rem">Nessuna occorrenza trovata.</td></tr>';
+    return;
+  }
+
+  res.forEach(({cantica:c,canto,terzina,left,match,right}) => {
+    const col=C_COLOR[c];
+    const tr=document.createElement('tr');
+    tr.setAttribute('data-cantica', c);
+    tr.setAttribute('data-canto', canto);
+    tr.setAttribute('data-number', terzina);
+    tr.setAttribute('title', 'Doppio click per aprire il canto');
+    tr.innerHTML=`
+      <td class="kwic-ref">
+        <span style="background:${col};color:#fff;border-radius:2px;padding:.05rem .35rem;font-size:.68rem">${c.slice(0,3)}</span>
+        <span style="color:var(--muted);font-size:.72rem;margin-left:.25rem">${canto}.${terzina}</span>
+      </td>
+      <td class="kwic-left">${left}</td>
+      <td class="kwic-match">${match}</td>
+      <td class="kwic-right">${right}</td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('kwic-section').style.display='block';
+
+  // Stats
+  const byC = res.reduce((a,r)=>{a[r.cantica]=(a[r.cantica]||0)+1;return a;},{});
+  const cantStr = CANTICHE.filter(c=>byC[c])
+    .map(c=>`<span style="color:${C_COLOR[c]}">${c}: <strong>${byC[c]}</strong></span>`).join(' &nbsp;·&nbsp; ');
+  document.getElementById('conc-stats').innerHTML=`
+    <div style="margin-bottom:.4rem">Totale: <strong style="color:var(--gold)">${res.length}</strong></div>
+    <div>${cantStr}</div>
+    <div style="margin-top:.4rem;color:var(--muted)">In <strong>${new Set(res.map(r=>r.cantica+'_'+r.canto)).size}</strong> canti diversi</div>`;
+
+  // Pie
+  Plotly.newPlot('conc-pie',[{
+    values:CANTICHE.filter(c=>byC[c]).map(c=>byC[c]),
+    labels:CANTICHE.filter(c=>byC[c]),
+    type:'pie', hole:.4,
+    marker:{colors:CANTICHE.filter(c=>byC[c]).map(c=>C_COLOR[c])},
+  }],{...PLOTLY_BASE, margin:{l:5,r:5,t:5,b:5}, legend:{font:{color:'#c8c0b0'}}},PL_OPT);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CO-OCCURRENCE NETWORK
+// ═══════════════════════════════════════════════════════════
+function renderNetwork(cantica='all', topN=50, mode='tfidf', stop=true, minFreq=3, maxFreq=Infinity) {
+  if (!nlpEngine) return;
+  const {words, mat} = nlpEngine.cooccurrence(cantica, topN, mode, stop, minFreq, maxFreq);
+  const freq = cantica==='all' ? nlpEngine.gFreq : nlpEngine.cFreq[cantica];
+  const n = words.length;
+
+  const cap = document.getElementById('net-caption');
+  if (cap) {
+    const maxStr = maxFreq === Infinity ? '∞' : maxFreq;
+    const modeStr = mode === 'tfidf' ? 'distintività (TF-IDF)' : 'frequenza';
+    cap.textContent = `Nodi: ${n} · selezione per ${modeStr}${stop?' · stopwords filtrate':''} · freq ∈ [${minFreq}, ${maxStr}]`;
+  }
+
+  if (!n) {
+    document.getElementById('network-div').innerHTML =
+      '<p style="color:var(--muted);text-align:center;padding:3rem">Nessuna parola soddisfa i filtri.<br>Prova ad abbassare <em>Freq. min</em> o alzare <em>Freq. max</em>.</p>';
+    return;
+  }
+
+  const edges=[];
+  // Adaptive edge threshold: with tfidf mode, distinctive words co-occur
+  // less often, so we lower the floor; with freq mode keep at 3.
+  const edgeThr = mode === 'tfidf' ? 2 : 3;
+  for (let i=0;i<n;i++) for (let j=i+1;j<n;j++) {
+    const w = mat[words[i]][words[j]];
+    if (w>=edgeThr) edges.push({s:i,t:j,w});
+  }
+
+  if (!edges.length) {
+    document.getElementById('network-div').innerHTML =
+      '<p style="color:var(--muted);text-align:center;padding:3rem">Nessuna co-occorrenza sufficiente tra le parole selezionate.</p>';
+    return;
+  }
+
+  // Spring layout
+  let pos = words.map((_,i)=>({x:Math.cos(2*Math.PI*i/n),y:Math.sin(2*Math.PI*i/n)}));
+  const k = Math.sqrt(1/n);
+  const adj={};
+  edges.forEach(e=>{
+    if(!adj[e.s])adj[e.s]=[];
+    if(!adj[e.t])adj[e.t]=[];
+    adj[e.s].push({nd:e.t,w:e.w});
+    adj[e.t].push({nd:e.s,w:e.w});
+  });
+
+  for (let it=0;it<120;it++) {
+    const F=pos.map(()=>({x:0,y:0}));
+    // repulsion
+    for (let i=0;i<n;i++) for (let j=i+1;j<n;j++) {
+      const dx=pos[i].x-pos[j].x, dy=pos[i].y-pos[j].y;
+      const d=Math.sqrt(dx*dx+dy*dy)||.01;
+      const f=k*k/d;
+      F[i].x+=f*dx/d; F[i].y+=f*dy/d;
+      F[j].x-=f*dx/d; F[j].y-=f*dy/d;
+    }
+    // attraction
+    edges.forEach(({s,t,w})=>{
+      const dx=pos[t].x-pos[s].x, dy=pos[t].y-pos[s].y;
+      const d=Math.sqrt(dx*dx+dy*dy)||.01;
+      const f=d*d/k/(w+1);
+      F[s].x+=f*dx/d; F[s].y+=f*dy/d;
+      F[t].x-=f*dx/d; F[t].y-=f*dy/d;
+    });
+    const temp=Math.max(.008,1-it/120);
+    for (let i=0;i<n;i++) {
+      const m=Math.sqrt(F[i].x**2+F[i].y**2)||.01;
+      pos[i].x+=(F[i].x/m)*Math.min(m,temp)*.28;
+      pos[i].y+=(F[i].y/m)*Math.min(m,temp)*.28;
+    }
+  }
+
+  const maxW = Math.max(...edges.map(e=>e.w));
+  const edgeTr = edges.map(e=>({
+    x:[pos[e.s].x,pos[e.t].x,null], y:[pos[e.s].y,pos[e.t].y,null],
+    type:'scatter', mode:'lines',
+    line:{color:`rgba(212,168,67,${.04+.22*(e.w/maxW)})`,width:e.w>8?2:1},
+    hoverinfo:'none', showlegend:false
+  }));
+
+  const maxF = Math.max(...words.map(w=>freq?.get(w)||1));
+  const nodeTr = {
+    x:pos.map(p=>p.x), y:pos.map(p=>p.y),
+    type:'scatter', mode:'markers+text',
+    marker:{
+      size:words.map(w=>5+((freq?.get(w)||1)/maxF)*22),
+      color:'#d4a843', opacity:.82,
+      line:{width:1,color:'#0e0c09'}
+    },
+    text:words, textposition:'top center',
+    textfont:{color:'#c8c0b0',size:9},
+    hovertext:words.map(w=>`${w}: ${freq?.get(w)||0}`),
+    hoverinfo:'text', showlegend:false
+  };
+
+  Plotly.newPlot('network-div',[...edgeTr,nodeTr],{
+    ...PLOTLY_BASE,
+    xaxis:{showgrid:false,zeroline:false,showticklabels:false},
+    yaxis:{showgrid:false,zeroline:false,showticklabels:false},
+    margin:{l:10,r:10,t:10,b:10}, hovermode:'closest'
+  },PL_OPT);
+
+  // Node click
+  document.getElementById('network-div').on('plotly_click', evt=>{
+    const pt=evt.points[0];
+    if (!pt || !pt.data.text) return;
+    const word=pt.data.text[pt.pointIndex];
+    if (!word) return;
+    const nbrs=(adj[pt.pointIndex]||[]).sort((a,b)=>b.w-a.w).slice(0,8);
+    document.getElementById('node-info').innerHTML=`
+      <strong style="color:var(--gold)">${word}</strong><br>
+      <span style="color:var(--muted)">Freq: ${freq?.get(word)||0}</span>
+      <div style="margin-top:.4rem">${nbrs.map(({nd,w})=>`
+        <div style="display:flex;justify-content:space-between">
+          <span>${words[nd]}</span><span style="color:var(--muted)">${w}</span>
+        </div>`).join('')}</div>`;
+  });
+
+  // Centrality
+  const cent=words.map((w,i)=>({w,s:(adj[i]||[]).reduce((a,{w:ww})=>a+ww,0)}))
+    .sort((a,b)=>b.s-a.s);
+  document.getElementById('centrality-list').innerHTML=cent.slice(0,10).map(({w,s})=>`
+    <div style="display:flex;justify-content:space-between;margin-bottom:.2rem">
+      <span style="color:var(--gold)">${w}</span>
+      <span style="color:var(--muted)">${s}</span>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SENTIMENT DASHBOARD
+// ═══════════════════════════════════════════════════════════
+function renderSentiment() {
+  if (!nlpEngine) return;
+  const tl = nlpEngine.sentimentTimeline();
+  const traces = CANTICHE.map(c=>({
+    x:tl[c].map(d=>d.canto), y:tl[c].map(d=>d.net),
+    name:c, type:'scatter', mode:'lines+markers',
+    line:{color:C_COLOR[c],width:2}, marker:{size:4,color:C_COLOR[c]}
+  }));
+  Plotly.newPlot('sentiment-timeline',traces,{
+    ...PLOTLY_BASE,
+    margin:{l:45,r:10,t:20,b:45},
+    xaxis:{title:'Canto',gridcolor:'#2e2a22'},
+    yaxis:{title:'Sentiment netto',gridcolor:'#2e2a22',zeroline:true,zerolinecolor:'#706858'},
+    legend:{font:{color:'#c8c0b0'}},
+  },PL_OPT);
+
+  let pos=0,neg=0,neu=0;
+  for (const c of Object.values(nlpEngine.td))
+    for (const terz of Object.values(c))
+      for (const [,,s] of terz) {
+        const sl=s?.toLowerCase();
+        if(sl==='positive')pos++; else if(sl==='negative')neg++; else neu++;
+      }
+  const tot=pos+neg+neu||1;
+  Plotly.newPlot('sentiment-pie',[{
+    values:[pos,neg,neu], labels:['Positivo','Negativo','Neutro'],
+    type:'pie', hole:.4,
+    marker:{colors:['#2471a3','#c0392b','#706858']},
+  }],{...PLOTLY_BASE,margin:{l:5,r:5,t:5,b:5},legend:{font:{color:'#c8c0b0'}}},PL_OPT);
+
+  document.getElementById('sentiment-summary').innerHTML=`
+    <div style="display:flex;justify-content:space-between">
+      <span>🔵 Positive</span><strong>${pos} (${Math.round(pos/tot*100)}%)</strong></div>
+    <div style="display:flex;justify-content:space-between">
+      <span>🔴 Negative</span><strong>${neg} (${Math.round(neg/tot*100)}%)</strong></div>
+    <div style="display:flex;justify-content:space-between">
+      <span>⚪ Neutre</span><strong>${neu} (${Math.round(neu/tot*100)}%)</strong></div>`;
+
+  const {pos:tp, neg:tn} = nlpEngine.topSentiment(8);
+  const mkCards = (list,id) => {
+    document.getElementById(id).innerHTML=list.map(t=>`
+      <div class="sent-card ${t.sentiment}"
+           data-cantica="${t.cantica}" data-canto="${t.canto}" data-number="${t.terzina}"
+           title="Doppio click per aprire il canto">
+        <div class="t-meta">${t.cantica} · ${t.canto} · Terzina ${t.terzina} &nbsp;score: ${t.score.toFixed(2)}</div>
+        <div class="t-text">${t.text}</div>
+      </div>`).join('');
+  };
+  mkCards(tp,'most-positive'); mkCards(tn,'most-negative');
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SEARCH HELPERS (original logic preserved)
+// ═══════════════════════════════════════════════════════════
+function prec(op){ return op==='not'?3:op==='and'?2:1; }
+
+function parseQuery(q){
+  const tokens=q.match(/(?:[^\s()]+|\(|\))/g)||[];
+  const stack=[],out=[];
+  tokens.forEach(tk=>{
+    const lt=tk.toLowerCase();
+    if(lt==='('){stack.push(lt);}
+    else if(lt===')'){while(stack.length&&stack[stack.length-1]!=='(')out.push(stack.pop());stack.pop();}
+    else if(['and','or','not'].includes(lt)){
+      while(stack.length&&['and','or','not'].includes(stack[stack.length-1])&&prec(lt)<=prec(stack[stack.length-1]))out.push(stack.pop());
+      stack.push(lt);
+    } else out.push({term:lt});
+  });
+  while(stack.length)out.push(stack.pop());
+  return out;
+}
+
+function evalQuery(text,cond,thr=0){
+  if(!cond||!cond.length)return false;
+  const stack=[];
+  const lo=text.toLowerCase();
+  const words=lo.split(/\s+/).map(w=>({word:w}));
+  const fuse=new Fuse(words,{includeScore:true,threshold:thr,keys:['word']});
+  for(const c of cond){
+    if(c.term){
+      const t=c.term.toLowerCase();
+      if(thr>0){stack.push(fuse.search(t).length>0);continue;}
+      let rx;
+      if(t.startsWith('*')&&t.endsWith('*'))rx=new RegExp(`(${t.slice(1,-1)})`,'gi');
+      else if(t.startsWith('*'))rx=new RegExp(`(${t.slice(1)})(?=\\s|$|[.,!?;:])`,'gi');
+      else if(t.endsWith('*'))rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t.slice(0,-1)})`,'gi');
+      else rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t})(?=\\s|$|[.,!?;:])`,'gi');
+      stack.push(rx.test(lo));
+    } else if(typeof c==='string'){
+      if(c==='not'){const o=stack.pop();stack.push(!o);}
+      else if(c==='and'){const b=stack.pop(),a=stack.pop();stack.push(a&&b);}
+      else if(c==='or'){const b=stack.pop(),a=stack.pop();stack.push(a||b);}
+    }
+  }
+  return !!stack.pop();
+}
+
+function highlightSearchedText(text,cond,thr=0){
+  if(!cond) return text;
+  const words=text.split(/\s+/).map(w=>({word:w}));
+  const fuse=new Fuse(words,{threshold:thr,keys:['word']});
+  cond.forEach(c=>{
+    if(!c.term)return;
+    const t=c.term.toLowerCase();
+    if(thr>0){
+      fuse.search(t).forEach(r=>{
+        text=text.replace(new RegExp(`(${r.item.word})`,'gi'),'<mark>$1</mark>');
+      });
+    } else {
+      let rx;
+      if(t.startsWith('*')&&t.endsWith('*'))rx=new RegExp(`(${t.slice(1,-1)})`,'gi');
+      else if(t.startsWith('*'))rx=new RegExp(`(${t.slice(1)})(?=\\s|$|[.,!?;:])`,'gi');
+      else if(t.endsWith('*'))rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t.slice(0,-1)})`,'gi');
+      else rx=new RegExp(`(?<=\\s|^|[.,!?;:])(${t})(?=\\s|$|[.,!?;:])`,'gi');
+      text=text.replace(rx,'<mark>$1</mark>');
+    }
+  });
+  return text;
+}
+
+function showAllMatchingTercets(){
+  const matching=new Set();
+  globalData.forEach(d=>{if(evalQuery(d.text||'',conditions,similarityThreshold))matching.add(`${d.cantica}_${d.canto}`);});
+  const out=[];
+  for(const [c,canti] of Object.entries(globalTercet)){
+    for(const [canto,terz] of Object.entries(canti)){
+      if(!matching.has(`${c}_${canto}`))continue;
+      terz.forEach(([tz,txt,sent,sc])=>{
+        if(evalQuery(txt.toLowerCase(),conditions,similarityThreshold))
+          out.push({cantica:c,canto:+canto,terzina:+tz,text:txt,sentiment:sent,score:sc});
+      });
+    }
+  }
+  out.sort((a,b)=>{
+    const cc=CANTICHE.indexOf(a.cantica)-CANTICHE.indexOf(b.cantica);
+    return cc||a.canto-b.canto||a.terzina-b.terzina;
+  });
+  const $dr=$('#dropdown');
+  $dr.empty();
+  out.forEach(({cantica:c,canto,terzina,text,sentiment:sent,score:sc})=>{
+    const hl=highlightSearchedText(text,conditions,similarityThreshold);
+    const cls=sent?.toLowerCase()==='positive'?'positive':sent?.toLowerCase()==='negative'?'negative':'';
+    const col=C_COLOR[c];
+    $dr.append($(`
+      <div class="terzina-card ${cls}" style="margin:.2rem"
+           data-cantica="${c}" data-canto="${canto}" data-number="${terzina}"
+           data-sentiment="${sent||''}" data-score="${sc||0}">
+        <div class="t-ref"><span style="background:${col};color:#fff;border-radius:2px;padding:.05rem .3rem;font-size:.65rem">${c.slice(0,3)}</span>
+          <span style="margin-left:.3rem;color:var(--muted)">${canto} · ${terzina}</span></div>${hl}</div>`));
+  });
+  // stats
+  document.getElementById('search-stats-content').innerHTML=`
+    <div>Terzine: <strong style="color:var(--gold)">${out.length}</strong></div>
+    <div>Canti: <strong style="color:var(--gold)">${matching.size}</strong></div>`;
+  document.getElementById('search-stats-box').style.display='block';
+  $dr.show();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COSMOLOGY DATA
+// ═══════════════════════════════════════════════════════════
+const COSMOLOGY = {
+  Inferno: [
+    {name:'Selva oscura',  sub:'L\'antefatto',           cantos:[1,2]},
+    {name:'Antinferno',    sub:'Ignavi',                 cantos:[3]},
+    {name:'Cerchio I',     sub:'Limbo',                  cantos:[4]},
+    {name:'Cerchio II',    sub:'Lussuriosi',             cantos:[5]},
+    {name:'Cerchio III',   sub:'Golosi',                 cantos:[6]},
+    {name:'Cerchio IV',    sub:'Avari e Prodighi',       cantos:[7]},
+    {name:'Cerchio V',     sub:'Iracondi e Accidiosi',   cantos:[7,8]},
+    {name:'Cerchio VI',    sub:'Eretici',                cantos:[9,10,11]},
+    {name:'Cerchio VII',   sub:'Violenti',               cantos:[12,13,14,15,16,17], subregions:[
+      {name:'Girone 1',   sub:'Violenti contro il prossimo',        cantos:[12]},
+      {name:'Girone 2',   sub:'Violenti contro sé (suicidi)',       cantos:[13]},
+      {name:'Girone 3',   sub:'Violenti contro Dio/natura/arte',    cantos:[14,15,16,17]},
+    ]},
+    {name:'Cerchio VIII', sub:'Malebolge — Fraudolenti', cantos:[18,19,20,21,22,23,24,25,26,27,28,29,30], subregions:[
+      {name:'Bolgia 1',  sub:'Ruffiani e Seduttori',     cantos:[18]},
+      {name:'Bolgia 2',  sub:'Adulatori',                cantos:[18]},
+      {name:'Bolgia 3',  sub:'Simoniaci',                cantos:[19]},
+      {name:'Bolgia 4',  sub:'Indovini',                 cantos:[20]},
+      {name:'Bolgia 5',  sub:'Barattieri',               cantos:[21,22]},
+      {name:'Bolgia 6',  sub:'Ipocriti',                 cantos:[23]},
+      {name:'Bolgia 7',  sub:'Ladri',                    cantos:[24,25]},
+      {name:'Bolgia 8',  sub:'Consiglieri fraudolenti',  cantos:[26,27]},
+      {name:'Bolgia 9',  sub:'Seminatori di discordia',  cantos:[28]},
+      {name:'Bolgia 10', sub:'Falsari',                  cantos:[29,30]},
+    ]},
+    {name:'Cerchio IX',   sub:'Cocito — Traditori',      cantos:[31,32,33,34], subregions:[
+      {name:'Caina',     sub:'Traditori dei parenti',    cantos:[32]},
+      {name:'Antenora',  sub:'Traditori della patria',   cantos:[32,33]},
+      {name:'Tolomea',   sub:'Traditori degli ospiti',   cantos:[33]},
+      {name:'Giudecca',  sub:'Traditori dei benefattori — Lucifero', cantos:[34]},
+    ]},
+  ],
+  Purgatorio: [
+    {name:'Spiaggia',            sub:'Arrivo e invocazione',       cantos:[1,2]},
+    {name:'Antipurgatorio',      sub:'Scomunicati, tardi pentiti, principi', cantos:[3,4,5,6,7,8]},
+    {name:'Porta del Purgatorio',sub:'Ingresso',                   cantos:[9]},
+    {name:'Cornice I',           sub:'Superbi',                    cantos:[10,11,12]},
+    {name:'Cornice II',          sub:'Invidiosi',                  cantos:[13,14,15]},
+    {name:'Cornice III',         sub:'Iracondi',                   cantos:[15,16,17]},
+    {name:'Cornice IV',          sub:'Accidiosi',                  cantos:[17,18,19]},
+    {name:'Cornice V',           sub:'Avari e Prodighi',           cantos:[19,20,21,22]},
+    {name:'Cornice VI',          sub:'Golosi',                     cantos:[22,23,24]},
+    {name:'Cornice VII',         sub:'Lussuriosi',                 cantos:[25,26,27]},
+    {name:'Paradiso Terrestre',  sub:'Eden, Beatrice',             cantos:[28,29,30,31,32,33]},
+  ],
+  Paradiso: [
+    {name:'Cielo I',    sub:'Luna — Spiriti mancanti dei voti',    cantos:[2,3,4,5]},
+    {name:'Cielo II',   sub:'Mercurio — Spiriti attivi',           cantos:[5,6,7]},
+    {name:'Cielo III',  sub:'Venere — Spiriti amanti',             cantos:[8,9]},
+    {name:'Cielo IV',   sub:'Sole — Spiriti sapienti',             cantos:[10,11,12,13,14]},
+    {name:'Cielo V',    sub:'Marte — Spiriti combattenti',         cantos:[14,15,16,17,18]},
+    {name:'Cielo VI',   sub:'Giove — Spiriti giusti',              cantos:[18,19,20]},
+    {name:'Cielo VII',  sub:'Saturno — Spiriti contemplanti',      cantos:[21,22]},
+    {name:'Cielo VIII', sub:'Stelle Fisse',                        cantos:[22,23,24,25,26,27]},
+    {name:'Cielo IX',   sub:'Primo Mobile',                        cantos:[27,28,29]},
+    {name:'Empireo',    sub:'Sede di Dio e dei beati',             cantos:[30,31,32,33]},
+  ],
+};
+
+// ═══════════════════════════════════════════════════════════
+//  SVG BUILDERS FOR COSMOLOGY MAPS
+// ═══════════════════════════════════════════════════════════
+
+// Escape quotes in labels for data-label
+function esc(s) { return String(s).replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function buildInfernoSVG() {
+  const W = 340, H = 660;
+  const cx = W/2;
+  const topHW = 150, botHW = 10;
+  const yStart = 30, yEnd = H - 10;
+  const totalH = yEnd - yStart;
+  const hw = y => topHW - (topHW-botHW) * ((y-yStart)/totalH);
+
+  const regions = COSMOLOGY.Inferno;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="infGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#6b1a16"/>
+        <stop offset="1" stop-color="#1a0505"/>
+      </linearGradient>
+    </defs>
+    <text class="map-title" x="${cx}" y="18">LA VORAGINE</text>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#infGrad)" opacity="0.2"/>`;
+
+  // Heights per region (tuned so everything fits in ~630px)
+  const heights = [
+    32,  // Selva
+    26,  // Antinferno
+    30,  // I Limbo
+    32,  // II
+    34,  // III
+    36,  // IV
+    38,  // V (covers 7-8)
+    45,  // VI (3 cantos)
+    66,  // VII (3 gironi, 6 cantos)
+    140, // VIII Malebolge (10 bolge, 13 cantos)
+    100  // IX Cocito (4 zone, 4 cantos)
+  ];
+
+  let y = yStart;
+  regions.forEach((reg, i) => {
+    const h = heights[i];
+    const yT = y, yB = y + h;
+
+    if (reg.subregions) {
+      // Draw internal horizontal strips for subregions
+      const nSub = reg.subregions.length;
+      const stripH = h / nSub;
+
+      // First, an outer frame for the cerchio itself (clickable on edges)
+      const htOuter = hw(yT), hbOuter = hw(yB);
+      svg += `<polygon class="region-shape" fill="#4a1a17" stroke="#d4a843" stroke-width="0.6" opacity="0.6"
+              points="${cx-htOuter},${yT} ${cx+htOuter},${yT} ${cx+hbOuter},${yB} ${cx-hbOuter},${yB}"
+              data-cantica="Inferno" data-region-idx="${i}"
+              data-label="${esc(reg.name+' — '+reg.sub)}">
+              <title>${esc(reg.name+' — '+reg.sub)}</title></polygon>`;
+
+      reg.subregions.forEach((sub, j) => {
+        const syT = yT + j * stripH, syB = yT + (j+1) * stripH;
+        const ht = hw(syT), hb = hw(syB);
+        const shade = 0.35 + 0.4 * (j/nSub); // darker going down
+        svg += `<polygon class="region-shape" fill="#8b2220" fill-opacity="${shade}" stroke="#2a0a08" stroke-width="0.4"
+                points="${cx-ht},${syT} ${cx+ht},${syT} ${cx+hb},${syB} ${cx-hb},${syB}"
+                data-cantica="Inferno" data-region-idx="${i}" data-sub-idx="${j}"
+                data-label="${esc(reg.name+': '+sub.name+' — '+sub.sub)}">
+                <title>${esc(reg.name+': '+sub.name+' — '+sub.sub)}</title></polygon>`;
+        // Label (only if strip tall enough)
+        if (stripH >= 11) {
+          svg += `<text class="region-label small" x="${cx}" y="${(syT+syB)/2}">${sub.name}</text>`;
+        }
+      });
+      // Big region label on the left, rotated
+      svg += `<text class="region-label" x="6" y="${(yT+yB)/2}" text-anchor="start"
+              transform="rotate(-90, 6, ${(yT+yB)/2})" style="font-weight:600">${reg.name}</text>`;
+    } else {
+      // Simple trapezoid
+      const ht = hw(yT), hb = hw(yB);
+      const color = i === 0 ? '#3a2418' : '#8b2220';
+      const opacity = 0.45 + 0.04*i;
+      svg += `<polygon class="region-shape" fill="${color}" fill-opacity="${opacity}" stroke="#2a0a08" stroke-width="0.4"
+              points="${cx-ht},${yT} ${cx+ht},${yT} ${cx+hb},${yB} ${cx-hb},${yB}"
+              data-cantica="Inferno" data-region-idx="${i}"
+              data-label="${esc(reg.name+' — '+reg.sub)}">
+              <title>${esc(reg.name+' — '+reg.sub)}</title></polygon>`;
+      svg += `<text class="region-label" x="${cx}" y="${(yT+yB)/2}">${reg.name}: ${reg.sub}</text>`;
+    }
+    y = yB;
+  });
+
+  // Lucifer decoration at the bottom
+  svg += `<g class="decor" transform="translate(${cx}, ${yEnd+4})">
+    <circle r="6" fill="#1a0505" stroke="#d4a843" stroke-width="0.5"/>
+    <text y="3" text-anchor="middle" fill="#d4a843" font-family="Cinzel" font-size="7" font-weight="600">L</text>
+  </g>`;
+
+  svg += '</svg>';
+  return svg;
+}
+
+function buildPurgatorioSVG() {
+  const W = 340, H = 660;
+  const cx = W/2;
+  // mountain extends from yBase to yTop
+  const yBase = H - 20, yTop = 70;
+  const baseHW = 150, topHW = 45;
+  const totalH = yBase - yTop;
+  const hw = y => baseHW - (baseHW - topHW) * ((yBase - y) / totalH);
+
+  const regions = COSMOLOGY.Purgatorio;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="purGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#5dad92"/>
+        <stop offset="0.1" stop-color="#8b5a2b"/>
+        <stop offset="1" stop-color="#3a2418"/>
+      </linearGradient>
+      <radialGradient id="edenGrad" cx="0.5" cy="1" r="0.8">
+        <stop offset="0" stop-color="#7cb342"/>
+        <stop offset="1" stop-color="#4a6a2a"/>
+      </radialGradient>
+    </defs>
+    <text class="map-title" x="${cx}" y="18">LA MONTAGNA</text>`;
+
+  // Draw sky above mountain
+  svg += `<rect x="0" y="25" width="${W}" height="${yTop-15}" fill="#1a2030" opacity="0.3"/>`;
+  // A few stars
+  for (let i=0; i<12; i++) {
+    const sx = 20 + Math.random() * (W-40);
+    const sy = 30 + Math.random() * (yTop-30);
+    svg += `<circle class="decor" cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(Math.random()*0.7+0.3).toFixed(1)}" fill="#d4a843" opacity="${(Math.random()*0.4+0.3).toFixed(2)}"/>`;
+  }
+
+  // Level heights (bottom=wide, top=narrow)
+  // 11 regions: Spiaggia, Antipurg, Porta, 7 Cornici, Paradiso Terrestre
+  const levels = 11;
+  const levelH = totalH / levels;
+
+  regions.forEach((reg, i) => {
+    // Bottom level is at the base; top level is at the top
+    const yB = yBase - i * levelH;
+    const yT = yB - levelH;
+    const isEden = i === regions.length - 1;
+
+    if (isEden) {
+      // Dome for Paradiso Terrestre
+      const domeHW = hw(yT);
+      // Rectangular base
+      const ht = hw(yT), hb = hw(yB);
+      svg += `<polygon class="region-shape" fill="url(#edenGrad)" stroke="#5a7a2a" stroke-width="0.6"
+              points="${cx-ht},${yT} ${cx+ht},${yT} ${cx+hb},${yB} ${cx-hb},${yB}"
+              data-cantica="Purgatorio" data-region-idx="${i}"
+              data-label="${esc(reg.name+' — '+reg.sub)}">
+              <title>${esc(reg.name+' — '+reg.sub)}</title></polygon>`;
+      // Dome
+      svg += `<path class="region-shape" fill="url(#edenGrad)" stroke="#5a7a2a" stroke-width="0.6"
+              d="M ${cx-domeHW} ${yT} A ${domeHW} ${domeHW*0.8} 0 0 1 ${cx+domeHW} ${yT} Z"
+              data-cantica="Purgatorio" data-region-idx="${i}"
+              data-label="${esc(reg.name+' — '+reg.sub)}">
+              <title>${esc(reg.name+' — '+reg.sub)}</title></path>`;
+      // Little trees
+      for (let t=0; t<3; t++) {
+        const tx = cx - 15 + t*15;
+        svg += `<path class="decor" d="M ${tx} ${yT-4} L ${tx-3} ${yT+2} L ${tx+3} ${yT+2} Z" fill="#2a4a1a"/>`;
+        svg += `<rect class="decor" x="${tx-0.5}" y="${yT+2}" width="1" height="3" fill="#4a3a20"/>`;
+      }
+      svg += `<text class="region-label" x="${cx}" y="${yT-7}" style="font-style:italic">Eden</text>`;
+    } else {
+      const ht = hw(yT), hb = hw(yB);
+      // Earthy browns with green tint near top
+      const ratio = i / (levels-1);
+      const r = Math.round(0x8b - (0x8b-0x5a)*ratio);
+      const g = Math.round(0x5a + (0x90-0x5a)*ratio);
+      const b = Math.round(0x2b + (0x4a-0x2b)*ratio);
+      const color = `rgb(${r},${g},${b})`;
+      svg += `<polygon class="region-shape" fill="${color}" fill-opacity="0.75" stroke="#2a1a0a" stroke-width="0.5"
+              points="${cx-ht},${yT} ${cx+ht},${yT} ${cx+hb},${yB} ${cx-hb},${yB}"
+              data-cantica="Purgatorio" data-region-idx="${i}"
+              data-label="${esc(reg.name+' — '+reg.sub)}">
+              <title>${esc(reg.name+' — '+reg.sub)}</title></polygon>`;
+      // Label centered
+      const label = reg.name === 'Porta del Purgatorio' ? 'Porta' :
+                    reg.name.startsWith('Cornice') ? reg.name + ': ' + reg.sub :
+                    reg.name;
+      svg += `<text class="region-label" x="${cx}" y="${(yT+yB)/2}">${label}</text>`;
+    }
+  });
+
+  // Water at the base
+  svg += `<rect class="decor" x="0" y="${yBase}" width="${W}" height="${H-yBase}" fill="#1a3a5a" opacity="0.5"/>`;
+  for (let i=0; i<5; i++) {
+    const wy = yBase + 5 + i*3;
+    svg += `<path class="decor" d="M 0 ${wy} Q ${W/4} ${wy-2} ${W/2} ${wy} T ${W} ${wy}" stroke="#5a9ac8" stroke-width="0.5" fill="none" opacity="0.4"/>`;
+  }
+
+  svg += '</svg>';
+  return svg;
+}
+
+function buildParadisoSVG() {
+  const W = 340, H = 660;
+  const cx = W/2, cy = H/2 + 8;
+  // 10 rings + Empireo outer glow + earth at center
+  const regions = COSMOLOGY.Paradiso;
+  const nRings = regions.length;
+  const innerR = 14; // around earth
+  const outerR = Math.min(W, H)/2 - 20;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="paraGrad" cx="0.5" cy="0.5" r="0.7">
+        <stop offset="0" stop-color="#1a2c4a"/>
+        <stop offset="0.7" stop-color="#0a1020"/>
+        <stop offset="1" stop-color="#000"/>
+      </radialGradient>
+      <radialGradient id="empGrad" cx="0.5" cy="0.5" r="0.5">
+        <stop offset="0" stop-color="#fff7d0"/>
+        <stop offset="0.5" stop-color="#d4a843"/>
+        <stop offset="1" stop-color="#8a6a22" stop-opacity="0.3"/>
+      </radialGradient>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="url(#paraGrad)" opacity="0.9"/>
+    <text class="map-title" x="${cx}" y="18">I CIELI</text>`;
+
+  // Stars (decorative) scattered outside the outermost ring
+  for (let i=0; i<40; i++) {
+    const sx = Math.random() * W;
+    const sy = 25 + Math.random() * (H-35);
+    const dx = sx-cx, dy = sy-cy;
+    if (Math.sqrt(dx*dx + dy*dy) > outerR + 8) {
+      svg += `<circle class="decor" cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="${(Math.random()*0.6+0.2).toFixed(1)}" fill="#fff" opacity="${(Math.random()*0.5+0.3).toFixed(2)}"/>`;
+    }
+  }
+
+  // Palette: blues deepening to gold
+  const colors = [
+    '#2c4a72', // Luna
+    '#3e5a82', '#4a6a8a', '#5a7a92', '#6a8a9a',
+    '#8a9aa2', '#a8a89a', '#c8b082', '#e0b86a',
+    '#e8c550', // Empireo
+  ];
+
+  // Empireo outer halo
+  svg += `<circle class="decor" cx="${cx}" cy="${cy}" r="${outerR+6}" fill="url(#empGrad)" opacity="0.55"/>`;
+
+  // Rings from outermost (Empireo) to innermost (Luna)
+  // Draw in reverse so outer ones are below and visible
+  const ringW = (outerR - innerR) / nRings;
+  for (let k = nRings - 1; k >= 0; k--) {
+    // region index k: k=0 is Luna (innermost), k=9 is Empireo (outermost)
+    const r2 = innerR + (k+1) * ringW; // outer radius
+    const r1 = innerR + k * ringW;     // inner radius
+    const reg = regions[k];
+    const color = colors[k];
+
+    // Annulus as path (fill-rule evenodd: outer big circle minus inner one)
+    svg += `<path class="region-shape"
+            fill="${color}" fill-opacity="${k === nRings-1 ? 0.75 : 0.6}"
+            stroke="#d4a843" stroke-width="0.4" stroke-opacity="0.5"
+            fill-rule="evenodd"
+            d="M ${cx+r2} ${cy} A ${r2} ${r2} 0 1 0 ${cx-r2} ${cy} A ${r2} ${r2} 0 1 0 ${cx+r2} ${cy} Z
+               M ${cx+r1} ${cy} A ${r1} ${r1} 0 1 1 ${cx-r1} ${cy} A ${r1} ${r1} 0 1 1 ${cx+r1} ${cy} Z"
+            data-cantica="Paradiso" data-region-idx="${k}"
+            data-label="${esc(reg.name+' — '+reg.sub)}">
+            <title>${esc(reg.name+' — '+reg.sub)}</title></path>`;
+
+    // Label placement: distribute labels along an upper arc, each at its own
+    // angle, with a minimum distance from center so that inner-ring labels
+    // (Luna, Mercurio…) don't stack near earth. A thin leader line connects
+    // the label to the midpoint of its ring.
+    const midR = (r1 + r2) / 2;
+    const labelR = Math.max(midR, outerR * 0.30);  // push inner labels outward
+    const shortMap = {'Stelle Fisse': 'Stelle', 'Primo Mobile': 'Primo Mob.'};
+    const rawLabel = reg.name === 'Empireo' ? 'Empireo' : reg.sub.split(' — ')[0];
+    const shortLabel = shortMap[rawLabel] || rawLabel;
+    // Spread 10 labels over 170° of the upper arc (nearly left-to-right via top)
+    const angle = (23*Math.PI/24) - (k / (nRings - 1)) * (11*Math.PI/12);
+    const lx = cx + labelR * Math.cos(angle);
+    const ly = cy - labelR * Math.sin(angle);
+    const cosA = Math.cos(angle);
+    const anchor = cosA > 0.15 ? 'start' : cosA < -0.15 ? 'end' : 'middle';
+    const xOff = cosA > 0.15 ? 2.5 : cosA < -0.15 ? -2.5 : 0;
+    if (labelR > midR + 4) {
+      const tx = cx + (midR + 1) * Math.cos(angle);
+      const ty = cy - (midR + 1) * Math.sin(angle);
+      svg += `<line class="decor" x1="${tx.toFixed(1)}" y1="${ty.toFixed(1)}"
+              x2="${(lx - xOff*0.4).toFixed(1)}" y2="${ly.toFixed(1)}"
+              stroke="#d4a843" stroke-width="0.35" opacity="0.55"/>`;
+    }
+    svg += `<text class="region-label small" x="${(lx+xOff).toFixed(1)}" y="${ly.toFixed(1)}"
+            text-anchor="${anchor}">${shortLabel}</text>`;
+  }
+
+  // Earth at center
+  svg += `<circle class="decor" cx="${cx}" cy="${cy}" r="${innerR}" fill="#2a3a5a" stroke="#d4a843" stroke-width="0.4"/>`;
+  svg += `<text class="region-label small decor" x="${cx}" y="${cy+1}" style="font-weight:600">Terra</text>`;
+
+  svg += '</svg>';
+  return svg;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  REGION DETAIL: shows cantos + mini wordcloud
+// ═══════════════════════════════════════════════════════════
+function showRegionDetail(cantica, regionIdx, subIdx = null) {
+  const top = COSMOLOGY[cantica][regionIdx];
+  const region = subIdx != null ? top.subregions[subIdx] : top;
+  const fullTitle = subIdx != null
+    ? `${cantica} · ${top.name}: ${region.name}`
+    : `${cantica} · ${region.name}`;
+  document.getElementById('region-title').textContent = fullTitle;
+  document.getElementById('region-subtitle').textContent = region.sub;
+
+  // Canto chips
+  const cantosBox = document.getElementById('region-cantos');
+  cantosBox.innerHTML = '';
+  region.cantos.forEach(c => {
+    const chip = document.createElement('span');
+    chip.className = 'canto-chip';
+    chip.textContent = c;
+    chip.title = `Apri ${cantica} — Canto ${c}`;
+    chip.addEventListener('click', () => openCantoModal(cantica, c));
+    cantosBox.appendChild(chip);
+  });
+
+  // Mini wordcloud
+  renderRegionWordCloud(cantica, region.cantos);
+
+  // Highlight active region in SVG
+  document.querySelectorAll('.cosmo-svg-slot .region-shape.active').forEach(e => e.classList.remove('active'));
+  const sel = subIdx != null
+    ? `.region-shape[data-cantica="${cantica}"][data-region-idx="${regionIdx}"][data-sub-idx="${subIdx}"]`
+    : `.region-shape[data-cantica="${cantica}"][data-region-idx="${regionIdx}"]:not([data-sub-idx])`;
+  document.querySelectorAll(sel).forEach(e => e.classList.add('active'));
+
+  // Show panel
+  const panel = document.getElementById('region-detail');
+  panel.style.display = 'block';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function renderRegionWordCloud(cantica, cantos) {
+  if (!nlpEngine) return;
+  const cantoList = cantos.map(c => ({cantica, canto: c}));
+  // Compute tfidf-ranked words; minFreq 2 to avoid hapax
+  const items = nlpEngine.topForCantos(cantoList, 30, true, 2, Infinity, 'tfidf');
+
+  const caption = document.getElementById('region-wc-caption');
+  caption.textContent = items.length
+    ? `Top 30 parole per distintività (TF-IDF) su ${cantos.length} canti. Click su una parola per cercarla nelle concordanze.`
+    : 'Nessuna parola distintiva — il segmento è troppo corto o troppo comune.';
+
+  const cont = document.getElementById('region-wordcloud');
+  cont.innerHTML = '';
+  if (!items.length) return;
+
+  const W = cont.offsetWidth || 400, H = 220;
+  const maxS = items[0][2], minS = items[items.length-1][2] || 0.0001;
+  const palette = cantica === 'Inferno' ? ['#e74c3c','#c0392b','#f1948a','#d35400']
+                : cantica === 'Purgatorio' ? ['#e67e22','#f39c12','#d4ac0d','#ca6f1e']
+                : ['#5dade2','#85c1e9','#d4a843','#f7dc6f'];
+  const placed = [];
+  const checkOv = (x,y,fw,fh) => placed.some(([px,py,pw,ph]) =>
+    Math.abs(x-px)<(fw+pw)/2+3 && Math.abs(y-py)<(fh+ph)/2+3);
+
+  for (const [word, freq, score] of items) {
+    const sz = Math.round(10 + ((score-minS)/(maxS-minS||1))*26);
+    const el = document.createElement('span');
+    el.className = 'wc-word';
+    el.textContent = word;
+    el.style.fontSize = sz + 'px';
+    el.style.color = palette[Math.floor(Math.random()*palette.length)];
+    el.title = `${word} · ${freq} occ. · TF-IDF ${score.toFixed(3)}`;
+    el.addEventListener('click', () => {
+      document.getElementById('conc-input').value = word;
+      document.getElementById('conc-cantica').value = cantica;
+      bootstrap.Tab.getOrCreateInstance(
+        document.querySelector('[href="#tab-concordanze"]')).show();
+      setTimeout(() => document.getElementById('conc-btn').click(), 100);
+    });
+    const fw = word.length*sz*0.55, fh = sz*1.2;
+    let ok = false;
+    outer: for (let r=0; r<Math.min(W,H)/2; r+=3) {
+      for (let a=0; a<6.28; a+=0.35) {
+        const x = W/2 + r*Math.cos(a), y = H/2 + r*Math.sin(a);
+        if (x<fw/2 || x>W-fw/2 || y<fh/2 || y>H-fh/2) continue;
+        if (!checkOv(x,y,fw,fh)) {
+          el.style.left = (x-fw/2) + 'px';
+          el.style.top = (y-fh/2) + 'px';
+          placed.push([x,y,fw,fh]); ok=true; break outer;
+        }
+      }
+    }
+    if (ok) cont.appendChild(el);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+$(()=>{
+  let dataReady=0;
+  const checkReady=()=>{
+    dataReady++;
+    if(dataReady<2)return;
+    $('#loading-msg').text('Costruzione motore NLP...');
+    setTimeout(()=>{
+      nlpEngine=new DanteNLP(globalTercet);
+      const st=nlpEngine.stats();
+      $('#s-canti').text(st.canti);
+      $('#s-terzine').text(st.terzine.toLocaleString('it'));
+      $('#s-versi').text(st.versi.toLocaleString('it'));
+      $('#s-vocab').text(st.vocab.toLocaleString('it'));
+      // hapax
+      const hSample=[...nlpEngine.hapax].filter(w=>w.length>3&&!STOP.has(w)).slice(0,25).join(', ');
+      $('#hapax-div').html(`<strong style="color:var(--gold)">${nlpEngine.hapax.size.toLocaleString('it')}</strong>
+        parole compaiono una sola volta (${Math.round(nlpEngine.hapax.size/nlpEngine.vocab.size*100)}% del vocabolario).
+        <div style="margin-top:.4rem">Esempi: <em style="color:var(--muted)">${hSample}...</em></div>`);
+      plotData(globalData, '2d');
+      document.getElementById('loading-overlay').style.opacity='0';
+      setTimeout(()=>{document.getElementById('loading-overlay').style.display='none';},600);
+    },40);
+  };
+
+  const loadJson = (url) => fetch(url).then(r => {
+    if (!r.ok) throw new Error(url + ' ' + r.status);
+    return r.json();
+  });
+  Promise.all([
+    loadJson('data/canti.json'),
+    loadJson('data/terzine.json'),
+  ]).then(([canti, terzine]) => {
+    globalData = canti;
+    globalTercet = terzine;
+    checkReady();
+    checkReady();
+  }).catch(err => {
+    console.error(err);
+    $('#loading-msg').text('Errore nel caricamento dei dati.');
+  });
+
+  // ── UMAP controls ──────────────────────────────────
+  $('#similaritySlider').on('input',function(){
+    similarityThreshold=+$(this).val(); $('#similarityValue').text(similarityThreshold);
+  });
+  $('#highlightSwitch').on('change',function(){
+    switchActivated=$(this).is(':checked');
+    if(switchActivated&&conditions?.length)showAllMatchingTercets();
+    else $('#dropdown').empty();
+  });
+  $('#btn-2d').on('click',function(){
+    currentView='2d';$(this).addClass('active');$('#btn-3d').removeClass('active');
+    if(globalData)plotData(globalData,'2d');
+  });
+  $('#btn-3d').on('click',function(){
+    currentView='3d';$(this).addClass('active');$('#btn-2d').removeClass('active');
+    if(globalData)plotData(globalData,'3d');
+  });
+  $('#searchBar').on('keydown',e=>{if(e.key==='Enter')$('#searchButton').click();});
+
+  $('#searchButton').on('click',function(){
+    const q=$('#searchBar').val().trim().toLowerCase();
+    if(!q){alert('Inserisci un termine.');return;}
+    conditions=parseQuery(q);
+    if(!globalData)return;
+    highlightedPoints=globalData.map((d,i)=>evalQuery(d.text||'',conditions,similarityThreshold)?i:null).filter(x=>x!==null);
+    if(!highlightedPoints.length){alert('Nessun risultato.');return;}
+    const sz=globalData.map((_,i)=>highlightedPoints.includes(i)?15:7);
+    const op=globalData.map((_,i)=>highlightedPoints.includes(i)?1:.2);
+    const mk={size:sz,opacity:op,color:globalData.map(d=>C_INT[d.color]??1),
+      colorscale:[[0,'#2471a3'],[.5,'#c87c2a'],[1,'#c0392b']],showscale:false,
+      line:{width:globalData.map((_,i)=>highlightedPoints.includes(i)?2:0),color:'#d4a843'}};
+    const base={mode:'markers',marker:mk,text:globalData.map(d=>d.name),hoverinfo:'text'};
+    const tr=currentView==='2d'?{...base,x:globalData.map(d=>d.x),y:globalData.map(d=>d.y),type:'scatter'}
+      :{...base,x:globalData.map(d=>d.x),y:globalData.map(d=>d.y),z:globalData.map(d=>d.z),type:'scatter3d'};
+    const lay={...PLOTLY_BASE,margin:{l:0,r:0,b:0,t:0},...(currentView==='2d'?{dragmode:'select'}:{})};
+    Plotly.newPlot('plot',[tr],lay,PL_OPT);
+    bindPlotEvents();
+    document.getElementById('search-stats-content').innerHTML=`Canti evidenziati: <strong style="color:var(--gold)">${highlightedPoints.length}</strong>`;
+    document.getElementById('search-stats-box').style.display='block';
+    if(switchActivated)showAllMatchingTercets();
+  });
+
+  $('#clearButton').on('click',()=>{
+    $('#searchBar').val(''); conditions=null; highlightedPoints=[]; switchActivated=false;
+    $('#highlightSwitch').prop('checked',false);
+    $('#dropdown').empty(); $('#search-stats-box').hide();
+    if(globalData)plotData(globalData,currentView);
+  });
+
+  // ── Auto-toggle hint above UMAP dropdown based on content ──
+  const _dd = document.getElementById('dropdown');
+  const _ddHint = document.getElementById('dropdown-hint');
+  if (_dd && _ddHint) {
+    new MutationObserver(() => {
+      _ddHint.style.display = _dd.children.length > 0 ? 'block' : 'none';
+    }).observe(_dd, {childList: true});
+  }
+
+  // ── Double-click anywhere with a tercet citation → open canto modal ──
+  // Works on: .terzina-card (UMAP dropdown), #kwic-table rows (Concordanze),
+  // .sent-card (Sentiment). Any element with data-cantica + data-canto works.
+  $('body').on('dblclick', '.terzina-card, #kwic-table tbody tr[data-cantica], .sent-card[data-cantica]', function(e){
+    e.preventDefault();
+    const cantica = $(this).attr('data-cantica');
+    const canto   = +$(this).attr('data-canto');
+    const tz      = $(this).attr('data-number');
+    if (!cantica || !canto) return;
+    openCantoModal(cantica, canto, tz != null ? +tz : null);
+  });
+
+  // Prevent text-selection flash on double-click of KWIC rows
+  $('body').on('mousedown', '#kwic-table tbody tr[data-cantica]', function(e){
+    if (e.detail > 1) e.preventDefault();
+  });
+
+  // Helper: parse maxFreq input (empty or negative = no upper bound)
+  const parseMax = sel => {
+    const raw = $(sel).val().trim();
+    return (raw === '' || +raw < 0 || isNaN(+raw)) ? Infinity : +raw;
+  };
+  const parseMin = (sel, def=1) => Math.max(1, +$(sel).val() || def);
+
+  // ── TAB activation ────────────────────────────────
+  $('a[href="#tab-frequenze"]').on('shown.bs.tab',()=>{
+    if(!nlpEngine)return;
+    renderFreqChart($('#freq-cantica').val(),+$('#freq-topn').val(),$('#stopword-sw').is(':checked'),$('#freq-mode').val(),parseMin('#freq-minfreq',3),parseMax('#freq-maxfreq'));
+    renderCloud($('#cloud-cantica').val(), $('#cloud-mode').val(), parseMin('#cloud-minfreq',3), parseMax('#cloud-maxfreq'));
+    renderCompareChart();
+  });
+  $('a[href="#tab-sentiment"]').on('shown.bs.tab',()=>{ if(nlpEngine)renderSentiment(); });
+
+  // ── Cosmologia tab: build SVGs once on first activation ──
+  let _cosmoBuilt = false;
+  $('a[href="#tab-cosmologia"]').on('shown.bs.tab', () => {
+    if (_cosmoBuilt) return;
+    document.getElementById('map-inferno').innerHTML    = buildInfernoSVG();
+    document.getElementById('map-purgatorio').innerHTML = buildPurgatorioSVG();
+    document.getElementById('map-paradiso').innerHTML   = buildParadisoSVG();
+    _cosmoBuilt = true;
+  });
+
+  // Delegated click on any cosmology region
+  $('body').on('click', '.cosmo-svg-slot .region-shape', function(e){
+    e.preventDefault();
+    const cantica = $(this).attr('data-cantica');
+    const idx     = +$(this).attr('data-region-idx');
+    const subAttr = $(this).attr('data-sub-idx');
+    const sub     = (subAttr == null || subAttr === '') ? null : +subAttr;
+    if (cantica && !isNaN(idx)) showRegionDetail(cantica, idx, sub);
+  });
+  $('#region-close').on('click', () => {
+    document.getElementById('region-detail').style.display = 'none';
+    document.querySelectorAll('.cosmo-svg-slot .region-shape.active').forEach(e => e.classList.remove('active'));
+  });
+
+  // ── Frequency controls ────────────────────────────
+  $('#freq-cantica,#freq-topn,#stopword-sw,#freq-mode,#freq-minfreq,#freq-maxfreq').on('change',()=>{
+    if(nlpEngine)renderFreqChart($('#freq-cantica').val(),+$('#freq-topn').val(),$('#stopword-sw').is(':checked'),$('#freq-mode').val(),parseMin('#freq-minfreq',3),parseMax('#freq-maxfreq'));
+  });
+  $('#cloud-btn').on('click',()=>{
+    if(nlpEngine)renderCloud($('#cloud-cantica').val(), $('#cloud-mode').val(), parseMin('#cloud-minfreq',3), parseMax('#cloud-maxfreq'));
+  });
+  $('#cloud-mode,#cloud-cantica').on('change',()=>{
+    if(nlpEngine)renderCloud($('#cloud-cantica').val(), $('#cloud-mode').val(), parseMin('#cloud-minfreq',3), parseMax('#cloud-maxfreq'));
+  });
+
+  // ── Concordance ───────────────────────────────────
+  $('#conc-input').on('keydown',e=>{if(e.key==='Enter')$('#conc-btn').click();});
+  $('#conc-btn').on('click',()=>{
+    const term=$('#conc-input').val().trim().toLowerCase();
+    if(!term||!nlpEngine)return;
+    const cantica=$('#conc-cantica').val();
+    renderHeatmap(term,cantica);
+    renderKWIC(term,cantica,+$('#kwic-ctx').val()||5);
+  });
+  $('#kwic-ctx').on('change',()=>{
+    const term=$('#conc-input').val().trim().toLowerCase();
+    if(term&&nlpEngine)renderKWIC(term,$('#conc-cantica').val(),+$('#kwic-ctx').val()||5);
+  });
+
+  // ── Network ───────────────────────────────────────
+  $('#net-build').on('click',function(){
+    if(!nlpEngine)return;
+    const $btn=$(this);
+    $btn.html('<span class="mini-spin"></span> Costruzione...');
+    setTimeout(()=>{
+      renderNetwork(
+        $('#net-cantica').val(),
+        +$('#net-topn').val(),
+        $('#net-mode').val(),
+        $('#net-stopwords').is(':checked'),
+        parseMin('#net-minfreq',1),
+        parseMax('#net-maxfreq')
+      );
+      $btn.text('Costruisci');
+    },30);
+  });
+  // Live-update caption when mode changes (to hint at what "Costruisci" will do)
+  $('#net-mode,#net-cantica,#net-stopwords,#net-minfreq,#net-maxfreq,#net-topn').on('change',()=>{
+    const cap = document.getElementById('net-caption');
+    if (cap) cap.innerHTML = '<em>Premi "Costruisci" per applicare i filtri</em>';
+  });
+
+  // ── Quiz ──────────────────────────────────────────
+  $('#generateQuizButton').on('click',function(){
+    if(!selectedPoints.length){alert('Nessun punto selezionato!');return;}
+    $('#loadingSpinner').show(); $(this).prop('disabled',true); $('#result').empty();
+    $(this).prop('disabled',false); $('#loadingSpinner').hide();
+    $('#result').html('<div class="alert-dante">Il quiz da selezione è disponibile solo nella versione Apps Script (Google Forms).</div>');
+  });
+});
+</script>
+<!-- ═══════════════════════════════════════════════
+     CANTO MODAL (opens from any tercet citation)
+═══════════════════════════════════════════════ -->
+<div class="modal fade" id="cantoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-xl modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-2">
+          <span id="canto-modal-badge" class="cantica-pill"></span>
+          <span id="canto-modal-title">Canto</span>
+          <span id="canto-modal-sub" style="color:var(--muted);font-size:.78rem;margin-left:.4rem"></span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Chiudi"></button>
+      </div>
+      <div class="modal-body" id="canto-modal-body"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-parch btn-sm" data-bs-dismiss="modal">← Indietro</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
